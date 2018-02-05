@@ -7,8 +7,8 @@
 
 // constructor
 bloomfilter_t *bf_new(const unsigned long num_elements, const double fpp) {
-  double m = (-(double)num_elements * log(fpp)) / (pow(log(2), 2));
-  double k = m * log(2) / ((double)num_elements);
+  double m = ceil((-(double)num_elements * log(fpp)) / (pow(log(2), 2)));
+  double k = ceil(m * log(2) / ((double)num_elements));
   bitarray_t *bitarray = ba_new((unsigned long)m);
   int num_hashes = (int) k;
 

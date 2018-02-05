@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
   }
 
   // test bloomfilter
-  bloomfilter_t *bloomfilter = bf_new(500000UL, 0.01);
+  bloomfilter_t *bloomfilter = bf_new(500000UL, 1e-6);
   bf_print(bloomfilter);
 
   for (int i = 0; i < (sizeof(strings) / sizeof(strings[0])); i++) {
