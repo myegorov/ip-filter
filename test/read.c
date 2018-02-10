@@ -1,47 +1,47 @@
 #include <stdio.h>
-
-// TODO: move declarations to header file
-FILE *wrap_fopen(const char *fname, const char *mode);
-int wrap_fclose(FILE *f);
-
-/* fopen() with error checking */
-FILE *wrap_fopen(const char *fname, const char *mode) {
-  FILE *infile = fopen(fname, mode);
-
-  if (infile == NULL) {
-    perror(fname);
-    exit(EXIT_FAILURE);
-  }
-  return infile;
-}
-
-/* fclose() with error checking */
-int wrap_fclose(FILE *f) {
-  if(fclose(infile) != 0){
-    perror("wrap_fclose");
-    exit(EXIT_FAILURE);
-  }
-  return 0;
-}
+#include <stdlib.h>
+#include "util.h"
 
 int main(void) {
   static const char *FNAME = "./data/ips/txt";
   FILE *infile = wrap_fopen(FNAME, "r");
 
+  // to store current line from file
   size_t line_length = 80;
-  char *buffer = malloc(line_length);
-  while(getline(&buffer, &line_length, infile) != -1){
-    // strip newline
-    buffer[strcspn(buffer, "\n")] = '\0';
-    buffer[strcspn(buffer, "\r\n")] = '\0';
+  char *line_buffer = wrap_malloc(line_length);
 
-    // TODO: add to query array & insert in Bloom filter
-    // TODO: dynamically resize (malloc & realloc) query array (char **ips)
-    ;
+  // hypothetical length of array of strings (may change)
+  size_t strarray_length = 131072; // 2^17
+  char **ips = (char **)wrap_malloc(strarray_length * sizeof(char *));
+  size_t iter = 0;
+
+  // TODO: extract to a separate function?
+  while(getline(&line_buffer, &line_length, infile) != -1){
+    // strip newline
+    line_buffer[strcspn(line_buffer, "\n")] = '\0';
+    line_buffer[strcspn(line_buffer, "\r\n")] = '\0';
+
+    // dynamically resize ip array
+    if (iter >= strarray_length) {
+      ips = (char **)wrap_realloc(ips, &strarray_length);
+    }
+    // allocate space for ip
+    ips[iter] = wrap_malloc(strlen(line_buffer)+1);
+    strcpy(ips[iter], line_buffer);
+
+    // TODO: insert in Bloom filter
+
+    iter += 1;
   }
 
-  free(buffer);
-  int close_status = wrap_fclose(infile);
+  wrap_fclose(infile);
+
+  // free allocated memory
+  for (int i = 0; i < iter; i++){
+    free(ips[i]);
+  }
+  free(ips);
+  free(line_buffer);
 
   return 0;
 }

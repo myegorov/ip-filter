@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include "fnv.h"
 #include "bloom.h"
+#include "util.h"
 
 // constructor
 bloomfilter_t *bf_new(const unsigned long num_elements, const double fpp) {
@@ -12,7 +13,7 @@ bloomfilter_t *bf_new(const unsigned long num_elements, const double fpp) {
   bitarray_t *bitarray = ba_new((unsigned long)m);
   int num_hashes = (int) k;
 
-  bloomfilter_t *bf = malloc(sizeof(bloomfilter_t));
+  bloomfilter_t *bf = wrap_malloc(sizeof(bloomfilter_t));
   bf->false_positive_probability = fpp;
   bf->n = num_elements;
   bf->k = num_hashes;

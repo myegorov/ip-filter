@@ -1,16 +1,17 @@
 #include <stdlib.h>
 #include <math.h>
 #include "bitarray.h"
+#include "util.h"
 
 // constructor
 bitarray_t *ba_new(const unsigned long size) {
-  bitarray_t *arr = malloc(sizeof(bitarray_t));
+  bitarray_t *arr = wrap_malloc(sizeof(bitarray_t));
 
   // round to next multiple of 8; size is in bits
   arr->size = (size + 7UL) & ~7UL;
 
   // initialize bit array to 0's
-  arr->bits = (unsigned char*) calloc((size_t)(arr->size)/8, sizeof(char));
+  arr->bits = (unsigned char*) wrap_calloc((size_t)(arr->size)/8, sizeof(char));
   return arr;
 }
 
