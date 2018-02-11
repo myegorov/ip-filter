@@ -3,10 +3,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include "util.h"
+#include "bloom.h"
 
 void strip_newline(char *str);
 char **append(const char *line_buffer, char **ips, size_t iter, size_t *strarray_length);
+void populate_filter(bloomfilter_t *bloomfilter, char **strs, size_t size);
+void query_filter(const bloomfilter_t *bloomfilter, char **strs, size_t size);
 
 void strip_newline(char *str) {
     // strip newline
@@ -25,11 +29,33 @@ char **append(const char *line_buffer, char **ips, size_t iter, size_t *strarray
     return ips;
 }
 
+void populate_filter(bloomfilter_t *bloomfilter, char **strs, size_t size) {
+  // for debugging
+  bf_print(bloomfilter);
+
+  for (int i = 0; i < size; i++) {
+      bf_insert(bloomfilter, strs[i]);
+  }
+}
+
+void query_filter(const bloomfilter_t *bloomfilter, char **strs, size_t size) {
+  clock_t start, end;
+  puts("Starting simple queries...");
+  start = clock();
+
+  for (int i = 0; i < size; i++) {
+    bf_contains(bloomfilter, strs[i]);
+  }
+
+  end = clock();
+  printf("%ld queries took %f seconds\n", size, ((double)(end - start)) / CLOCKS_PER_SEC);
+}
+
 int main(void) {
   static const char *FNAME = "./data/ips.txt";
   FILE *infile = wrap_fopen(FNAME, "r");
 
-  // to store current line from file
+  // store current line from file
   size_t line_length = 80;
   char *line_buffer = wrap_malloc(line_length);
 
@@ -41,14 +67,16 @@ int main(void) {
   while(getline(&line_buffer, &line_length, infile) != -1){
     strip_newline(line_buffer);
     ips = append(line_buffer, ips, iter, &strarray_length);
-
-    // TODO: insert in Bloom filter
-
     iter += 1;
   }
 
-  wrap_fclose(infile);
+  // insert & query Bloom filter
+  bloomfilter_t *bloomfilter = bf_new(iter, 1e-6);
+  populate_filter(bloomfilter, ips, iter);
+  query_filter(bloomfilter, ips, iter);
 
+  wrap_fclose(infile);
+  bf_free(bloomfilter);
   // free allocated memory
   for (int i = 0; i < iter; i++){
     free(ips[i]);

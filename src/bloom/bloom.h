@@ -33,7 +33,7 @@ void bf_insert(bloomfilter_t *bf, const char *key);
 // membership test
 // 0 => does NOT contain
 // non-zero => positive or false positive
-int bf_contains(bloomfilter_t *bf, const char *key);
+int bf_contains(const bloomfilter_t *bf, const char *key);
 
 // TODO: insert a vector of keys w/ prefetching
 // TODO: membership test for a vector of keys w/ prefetching

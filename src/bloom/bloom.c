@@ -48,7 +48,7 @@ void bf_insert(bloomfilter_t *bf, const char *key) {
   }
 }
 
-int bf_contains(bloomfilter_t *bf, const char *key) {
+int bf_contains(const bloomfilter_t *bf, const char *key) {
   uint64_t hash = hash_fnv(key);
   uint64_t h1, h2;
   h1 = hash & 0x00000000FFFFFFFFLL;
