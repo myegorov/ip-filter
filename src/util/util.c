@@ -41,8 +41,8 @@ void *wrap_calloc(size_t num_elements, size_t element_size) {
 }
 
 /* realloc() with error checking */
-void *wrap_realloc(void *mp, size_t *old_size) {
-  void *new_mp = realloc(mp, 2 * (*old_size));
+void *wrap_realloc(void *mp, size_t *old_size, size_t element_size) {
+  void *new_mp = realloc(mp, 2 * (*old_size) * element_size);
   if (new_mp == NULL) {
     free(mp); // free old array
     perror("wrap_realloc");
