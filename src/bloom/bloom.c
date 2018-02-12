@@ -94,43 +94,63 @@ int bf_contains(const bloomfilter_t *bf, const char *key) {
 /* } */
 
 
-/* //TODO: test2 */
-/* int bf_contains_with_prefetch(const bloomfilter_t *bf, const char *key) { */
-/*   uint64_t hash = hash_fnv(key); */
-/*   uint64_t h1, h2; */
-/*   h1 = hash & 0x00000000FFFFFFFFLL; */
-/*   h2 = hash & 0xFFFFFFFF00000000LL; */
-/*   unsigned long indices[bf->k]; */
-/*   unsigned long ix; */
-/*   for (int i = 0; i < bf->k; i++) { */
-/*     ix = (h1 + i * h2) % (bf->ba->size); */
-/*     indices[i] = ix; */
-/*     __builtin_prefetch (& (bf->ba->bits)[ix/8], 0, 1); */
-/*   } */
-/*   for (int i = 0; i < bf->k; i++) { */
-/*     ix = indices[i]; */
-/*     if (((bf->ba->bits)[ix/8] & (1 << (ix%8))) == 0) { */
-/*       return 0; */
-/*     } */
-/*   } */
-/*   return 1; */
-/* } */
-
-//TODO: test1
+//TODO: test2
 int bf_contains_with_prefetch(const bloomfilter_t *bf, const char *key) {
   uint64_t hash = hash_fnv(key);
   uint64_t h1, h2;
   h1 = hash & 0x00000000FFFFFFFFLL;
   h2 = hash & 0xFFFFFFFF00000000LL;
-  unsigned long ix = h1 % (bf->ba->size);
+  unsigned long indices[bf->k];
+  unsigned long ix;
   for (int i = 0; i < bf->k; i++) {
-    if (((bf->ba->bits)[ix/8] & (1 << (ix%8))) == 0) {
+    ix = (h1 + i * h2) % (bf->ba->size);
+    indices[i] = ix;
+    __builtin_prefetch (& (bf->ba->bits)[ix/8], 0, 3);
+  }
+  for (int i = 0; i < bf->k; i++) {
+    /* ix = indices[i]; */
+    if (((bf->ba->bits)[indices[i]/8] & (1 << (indices[i]%8))) == 0) {
       return 0;
     }
-    __builtin_prefetch (&(bf->ba->bits)[(ix=(h1 + (i+1) * h2) % (bf->ba->size))/8], 0, 1);
   }
   return 1;
 }
+
+
+/* //TODO: test1 */
+/* int bf_contains_with_prefetch(const bloomfilter_t *bf, const char *key) { */
+/*   uint64_t hash = hash_fnv(key); */
+/*   uint64_t h1, h2; */
+/*   h1 = hash & 0x00000000FFFFFFFFLL; */
+/*   h2 = hash & 0xFFFFFFFF00000000LL; */
+/*   unsigned long ix = h1 % (bf->ba->size); */
+/*   unsigned long next_ix; */
+/*   for (int i = 0; i < bf->k; i++) { */
+/*     __builtin_prefetch (&(bf->ba->bits)[(next_ix=(h1 + (i+1) * h2) % (bf->ba->size))/8], 0, 1); */
+
+/*     if (( (1 << (ix%8)) & (bf->ba->bits)[ix/8] ) == 0) { */
+/*       return 0; */
+/*     } */
+/*     ix = next_ix; */
+/*   } */
+/*   return 1; */
+/* } */
+
+/* //TODO: test0 */
+/* int bf_contains_with_prefetch(const bloomfilter_t *bf, const char *key) { */
+/*   uint64_t hash = hash_fnv(key); */
+/*   uint64_t h1, h2; */
+/*   h1 = hash & 0x00000000FFFFFFFFLL; */
+/*   h2 = hash & 0xFFFFFFFF00000000LL; */
+/*   unsigned long ix = h1 % (bf->ba->size); */
+/*   for (int i = 0; i < bf->k; i++) { */
+/*     if (((bf->ba->bits)[ix/8] & (1 << (ix%8))) == 0) { */
+/*       return 0; */
+/*     } */
+/*     __builtin_prefetch (&(bf->ba->bits)[(ix=(h1 + (i+1) * h2) % (bf->ba->size))/8], 0, 1); */
+/*   } */
+/*   return 1; */
+/* } */
 
 int bf_contains_pseudo(const bloomfilter_t *bf, const char *key) {
   // do some constant work
@@ -141,6 +161,8 @@ int bf_contains_pseudo(const bloomfilter_t *bf, const char *key) {
   unsigned long ix;
   // look up always at index 0
   int LOOKUP = 0;
+
+  // note the loop is eliminated by optimizing compiler
   for (int i = 0; i < bf->k; i++) {
     (bf->ba->bits)[LOOKUP];
   }
@@ -150,6 +172,8 @@ int bf_contains_pseudo(const bloomfilter_t *bf, const char *key) {
 int bf_do_nothing(const bloomfilter_t *bf) {
   // look up always at index 0
   int LOOKUP = 0;
+
+  // note the loop is eliminated by optimizing compiler
   for (int i = 0; i < bf->k; i++) {
     (bf->ba->bits)[LOOKUP];
   }

@@ -40,28 +40,31 @@ void populate_filter(bloomfilter_t *bloomfilter, char **strs, size_t size) {
 
 void query_filter(const bloomfilter_t *bloomfilter, char **strs, size_t size) {
   clock_t start, end;
+  int *res = wrap_malloc(size * sizeof(int));
+
   puts("Starting queries...");
   start = clock();
 
   for (int i = 0; i < size; i++) {
 #ifdef PREFETCH
-    bf_contains_with_prefetch(bloomfilter, strs[i]);
+    res[i] = bf_contains_with_prefetch(bloomfilter, strs[i]);
 #endif
 #ifdef NOPREFETCH
-    bf_contains(bloomfilter, strs[i]);
-  }
+    res[i] = bf_contains(bloomfilter, strs[i]);
 #endif
 #ifdef PSEUDO
-    bf_contains_pseudo(bloomfilter, strs[i]);
-  }
+    res[i] = bf_contains_pseudo(bloomfilter, strs[i]);
 #endif
 #ifdef IDLE
-    bf_do_nothing(bloomfilter);
-  }
+    res[i] = bf_do_nothing(bloomfilter);
 #endif
+  }
 
   end = clock();
   printf("%ld queries took %f seconds\n", size, ((double)(end - start)) / CLOCKS_PER_SEC);
+  printf("last element of res: %d\n", res[size-1]);
+
+  free(res);
 }
 
 int main(void) {
@@ -84,10 +87,21 @@ int main(void) {
   }
   wrap_fclose(infile);
 
+  // copy ips array several times over to make sure it doesn't fit in L3 cache
+  size_t scale = 10;
+  size_t new_iter = scale * iter;
+  char **new_ips = wrap_malloc(new_iter * sizeof(char *));
+  for (int i = 0; i < scale; i++) {
+    memcpy(new_ips + i * iter, ips, iter * sizeof(char *));
+  }
+
   // insert & query Bloom filter
-  bloomfilter_t *bloomfilter = bf_new(iter, 1e-6);
-  populate_filter(bloomfilter, ips, iter);
-  query_filter(bloomfilter, ips, iter);
+  /* bloomfilter_t *bloomfilter = bf_new(iter, 1e-6); */
+  bloomfilter_t *bloomfilter = bf_new(new_iter, 1e-6);
+  /* populate_filter(bloomfilter, ips, iter); */
+  populate_filter(bloomfilter, new_ips, new_iter);
+  /* query_filter(bloomfilter, ips, iter); */
+  query_filter(bloomfilter, new_ips, new_iter);
 
   // free allocated memory
   bf_free(bloomfilter);
@@ -95,6 +109,7 @@ int main(void) {
     free(ips[i]);
   }
   free(ips);
+  free(new_ips);
   free(line_buffer);
 
   return 0;
