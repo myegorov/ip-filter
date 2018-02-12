@@ -35,6 +35,13 @@ void bf_insert(bloomfilter_t *bf, const char *key);
 // non-zero => positive or false positive
 int bf_contains(const bloomfilter_t *bf, const char *key);
 
-// TODO: insert a vector of keys w/ prefetching
-// TODO: membership test for a vector of keys w/ prefetching
+// membership test using __builtin_prefetch for forthcoming bitarray address
+// prefetch addresses of bitarray[future_hash] where multiple hash functions are involved
+int bf_contains_with_prefetch(const bloomfilter_t *bf, const char *key);
+
+// pseudo membership tests
+// look up bitarray[0] on each request and return 1
+int bf_contains_pseudo(const bloomfilter_t *bf, const char *key);
+int bf_do_nothing(const bloomfilter_t *bf);
+
 #endif

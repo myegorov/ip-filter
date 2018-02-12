@@ -40,12 +40,25 @@ void populate_filter(bloomfilter_t *bloomfilter, char **strs, size_t size) {
 
 void query_filter(const bloomfilter_t *bloomfilter, char **strs, size_t size) {
   clock_t start, end;
-  puts("Starting simple queries...");
+  puts("Starting queries...");
   start = clock();
 
   for (int i = 0; i < size; i++) {
+#ifdef PREFETCH
+    bf_contains_with_prefetch(bloomfilter, strs[i]);
+#endif
+#ifdef NOPREFETCH
     bf_contains(bloomfilter, strs[i]);
   }
+#endif
+#ifdef PSEUDO
+    bf_contains_pseudo(bloomfilter, strs[i]);
+  }
+#endif
+#ifdef IDLE
+    bf_do_nothing(bloomfilter);
+  }
+#endif
 
   end = clock();
   printf("%ld queries took %f seconds\n", size, ((double)(end - start)) / CLOCKS_PER_SEC);
@@ -69,15 +82,15 @@ int main(void) {
     ips = append(line_buffer, ips, iter, &strarray_length);
     iter += 1;
   }
+  wrap_fclose(infile);
 
   // insert & query Bloom filter
   bloomfilter_t *bloomfilter = bf_new(iter, 1e-6);
   populate_filter(bloomfilter, ips, iter);
   query_filter(bloomfilter, ips, iter);
 
-  wrap_fclose(infile);
-  bf_free(bloomfilter);
   // free allocated memory
+  bf_free(bloomfilter);
   for (int i = 0; i < iter; i++){
     free(ips[i]);
   }

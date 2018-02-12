@@ -1,7 +1,7 @@
 #include <stdio.h>
-#include <stdlib.h>
 #include <math.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include "fnv.h"
 #include "bloom.h"
 #include "util.h"
@@ -48,6 +48,7 @@ void bf_insert(bloomfilter_t *bf, const char *key) {
   }
 }
 
+//TODO: modified to make directly comparable to _with_prefetch version
 int bf_contains(const bloomfilter_t *bf, const char *key) {
   uint64_t hash = hash_fnv(key);
   uint64_t h1, h2;
@@ -56,9 +57,101 @@ int bf_contains(const bloomfilter_t *bf, const char *key) {
   unsigned long ix;
   for (int i = 0; i < bf->k; i++) {
     ix = (h1 + i * h2) % (bf->ba->size);
-    if (ba_read_bit(bf->ba, ix) == 0) {
+    if (((bf->ba->bits)[ix/8] & (1 << (ix%8))) == 0) {
       return 0;
     }
+    /* if (ba_read_bit(bf->ba, ix) == 0) { */
+    /*   return 0; */
+    /* } */
+  }
+  return 1;
+}
+
+/* //TODO: test3 */
+/* int bf_contains_with_prefetch_next(const bloomfilter_t *bf, const char *key, const char *next_key) { */
+/*   uint64_t hash = hash_fnv(key); */
+/*   uint64_t h1, h2; */
+/*   h1 = hash & 0x00000000FFFFFFFFLL; */
+/*   h2 = hash & 0xFFFFFFFF00000000LL; */
+
+/*   uint64_t hash_next = hash_fnv(next_key); */
+/*   uint64_t h1_next, h2_next; */
+/*   h1_next = hash_next & 0x00000000FFFFFFFFLL; */
+/*   h2_next = hash_next & 0xFFFFFFFF00000000LL; */
+
+/*   unsigned long ix; */
+/*   for (int i = 0; i < bf->k; i++) { */
+/*     ix = (h1_next + i * h2_next) % (bf->ba->size); */
+/*     __builtin_prefetch (& (bf->ba->bits)[ix/8], 0, 1); */
+/*   } */
+/*   for (int i = 0; i < bf->k; i++) { */
+/*     ix = (h1 + i * h2) % (bf->ba->size); */
+/*     if (((bf->ba->bits)[ix/8] & (1 << (ix%8))) == 0) { */
+/*       return 0; */
+/*     } */
+/*   } */
+/*   return 1; */
+/* } */
+
+
+/* //TODO: test2 */
+/* int bf_contains_with_prefetch(const bloomfilter_t *bf, const char *key) { */
+/*   uint64_t hash = hash_fnv(key); */
+/*   uint64_t h1, h2; */
+/*   h1 = hash & 0x00000000FFFFFFFFLL; */
+/*   h2 = hash & 0xFFFFFFFF00000000LL; */
+/*   unsigned long indices[bf->k]; */
+/*   unsigned long ix; */
+/*   for (int i = 0; i < bf->k; i++) { */
+/*     ix = (h1 + i * h2) % (bf->ba->size); */
+/*     indices[i] = ix; */
+/*     __builtin_prefetch (& (bf->ba->bits)[ix/8], 0, 1); */
+/*   } */
+/*   for (int i = 0; i < bf->k; i++) { */
+/*     ix = indices[i]; */
+/*     if (((bf->ba->bits)[ix/8] & (1 << (ix%8))) == 0) { */
+/*       return 0; */
+/*     } */
+/*   } */
+/*   return 1; */
+/* } */
+
+//TODO: test1
+int bf_contains_with_prefetch(const bloomfilter_t *bf, const char *key) {
+  uint64_t hash = hash_fnv(key);
+  uint64_t h1, h2;
+  h1 = hash & 0x00000000FFFFFFFFLL;
+  h2 = hash & 0xFFFFFFFF00000000LL;
+  unsigned long ix = h1 % (bf->ba->size);
+  for (int i = 0; i < bf->k; i++) {
+    if (((bf->ba->bits)[ix/8] & (1 << (ix%8))) == 0) {
+      return 0;
+    }
+    __builtin_prefetch (&(bf->ba->bits)[(ix=(h1 + (i+1) * h2) % (bf->ba->size))/8], 0, 1);
+  }
+  return 1;
+}
+
+int bf_contains_pseudo(const bloomfilter_t *bf, const char *key) {
+  // do some constant work
+  uint64_t hash = hash_fnv(key);
+  uint64_t h1, h2;
+  h1 = hash & 0x00000000FFFFFFFFLL;
+  h2 = hash & 0xFFFFFFFF00000000LL;
+  unsigned long ix;
+  // look up always at index 0
+  int LOOKUP = 0;
+  for (int i = 0; i < bf->k; i++) {
+    (bf->ba->bits)[LOOKUP];
+  }
+  return 1;
+}
+
+int bf_do_nothing(const bloomfilter_t *bf) {
+  // look up always at index 0
+  int LOOKUP = 0;
+  for (int i = 0; i < bf->k; i++) {
+    (bf->ba->bits)[LOOKUP];
   }
   return 1;
 }
