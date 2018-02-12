@@ -48,24 +48,46 @@ void bf_insert(bloomfilter_t *bf, const char *key) {
   }
 }
 
-//TODO: modified to make directly comparable to _with_prefetch version
+/* //TODO: modified to make directly comparable to _with_prefetch version */
+/* int bf_contains(const bloomfilter_t *bf, const char *key) { */
+/*   uint64_t hash = hash_fnv(key); */
+/*   uint64_t h1, h2; */
+/*   h1 = hash & 0x00000000FFFFFFFFLL; */
+/*   h2 = hash & 0xFFFFFFFF00000000LL; */
+/*   unsigned long ix; */
+/*   for (int i = 0; i < bf->k; i++) { */
+/*     ix = (h1 + i * h2) % (bf->ba->size); */
+/*     if (((bf->ba->bits)[ix/8] & (1 << (ix%8))) == 0) { */
+/*       return 0; */
+/*     } */
+/*     /1* if (ba_read_bit(bf->ba, ix) == 0) { *1/ */
+/*     /1*   return 0; *1/ */
+/*     /1* } *1/ */
+/*   } */
+/*   return 1; */
+/* } */
+
+// modified bf_contains() identical with bf_contains_with_prefetch()
+// except for no __builtin_prefetch()
 int bf_contains(const bloomfilter_t *bf, const char *key) {
   uint64_t hash = hash_fnv(key);
   uint64_t h1, h2;
   h1 = hash & 0x00000000FFFFFFFFLL;
   h2 = hash & 0xFFFFFFFF00000000LL;
+  unsigned long indices[bf->k];
   unsigned long ix;
   for (int i = 0; i < bf->k; i++) {
     ix = (h1 + i * h2) % (bf->ba->size);
-    if (((bf->ba->bits)[ix/8] & (1 << (ix%8))) == 0) {
+    indices[i] = ix;
+  }
+  for (int i = 0; i < bf->k; i++) {
+    if (((bf->ba->bits)[indices[i]/8] & (1 << (indices[i]%8))) == 0) {
       return 0;
     }
-    /* if (ba_read_bit(bf->ba, ix) == 0) { */
-    /*   return 0; */
-    /* } */
   }
   return 1;
 }
+
 
 /* //TODO: test3 */
 /* int bf_contains_with_prefetch_next(const bloomfilter_t *bf, const char *key, const char *next_key) { */
