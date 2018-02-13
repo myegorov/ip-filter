@@ -127,10 +127,10 @@ int bf_contains_with_prefetch(const bloomfilter_t *bf, const char *key) {
   for (int i = 0; i < bf->k; i++) {
     ix = (h1 + i * h2) % (bf->ba->size);
     indices[i] = ix;
-    __builtin_prefetch (& (bf->ba->bits)[ix/8], 0, 3);
+    __builtin_prefetch (& (bf->ba->bits)[ix/8], 0, 1);
   }
+  // TODO: loop back from end of indices[], presumably fresher in memory
   for (int i = 0; i < bf->k; i++) {
-    /* ix = indices[i]; */
     if (((bf->ba->bits)[indices[i]/8] & (1 << (indices[i]%8))) == 0) {
       return 0;
     }

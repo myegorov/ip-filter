@@ -62,8 +62,9 @@ void query_filter(const bloomfilter_t *bloomfilter, char **strs, size_t size) {
 
   end = clock();
   printf("%ld queries took %f seconds\n", size, ((double)(end - start)) / CLOCKS_PER_SEC);
-  printf("last element of res: %d\n", res[size-1]);
 
+  // making sure that calls to bf_contains() are not eliminated by optimizing compiler
+  printf("last element of res: %d\n", res[size-1]);
   free(res);
 }
 
