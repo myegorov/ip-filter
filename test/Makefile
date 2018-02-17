@@ -15,7 +15,7 @@ all: unit_test.c $(UTIL)/util.c $(FNV)/fnv.c $(BITS)/bitarray.c $(BLOOM)/bloom.c
 clean:
 	@rm -f ./unit_test
 
-valgrind: all no-prefetch prefetch
+valgrind: all
 	valgrind --tool=memcheck --leak-check=full --show-reachable=yes --num-callers=20 --track-fds=yes ./unit_test
 
 .PHONY: all clean valgrind
