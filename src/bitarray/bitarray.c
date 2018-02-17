@@ -28,12 +28,6 @@ unsigned char ba_read_bit(bitarray_t *arr, const unsigned long ix) {
   return val;
 }
 
-/* unsigned char ba_read_bit_with_prefetch(bitarray_t *arr, const unsigned long ix, const unsigned long next_ix) { */
-/*   __builtin_prefetch (&(arr->bits)[next_ix/8], 0, 1); */
-/*   unsigned char val = ((arr->bits)[ix/8] & (1 << (ix%8))) != 0; */
-/*   return val; */
-/* } */
-
 // set bit at ix to 1
 // client has to check that ix is within array bounds
 void ba_set_bit(bitarray_t *arr, const unsigned long ix) {
