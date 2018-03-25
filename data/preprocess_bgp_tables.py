@@ -2,6 +2,9 @@
 - parse BGP tables from http://bgp.potaroo.net/index-bgp.html
 - plot the stats about prefix count & address space covered
 - fetch covered address space and partition the space by prefix length
+- output sorted list of prefixes:
+    prefix_int prefix_len cidr_network
+    16909060 32 1.2.3.4/32
 '''
 
 import os
@@ -12,6 +15,7 @@ ROOTDIR = os.path.dirname(os.path.realpath(__file__))
 RAWDIR = os.path.join(ROOTDIR,'raw')
 OUTDIR = os.path.join(ROOTDIR,'out')
 IMGDIR = os.path.join(OUTDIR, 'img')
+TRAFFICDIR = os.path.join(OUTDIR, 'traffic')
 
 BGPTAB = 'bgptable.txt' # file name
 
@@ -151,13 +155,17 @@ def partition(prefixes, protocol='v4'):
     prefix_lens = [net.IPSet(networks_by_prefix_length[plen]) for plen in range(LEN)]
 
     print('\nCalculating % space covered by each prefix length...')
+    prefix_lens_tight = [None for plen in range(LEN)] # exclude the more specific ranges
     space_by_plen = [0 for i in range(LEN)]
     precedence_pset = net.IPSet([])
     for i in range(LEN-1,-1,-1):
         plen, pset = i, prefix_lens[i]
         print('\tprocessing length:', plen)
-        if pset.size == 0: continue
+        if pset.size == 0:
+            prefix_lens_tight[plen] = pset
+            continue
         plen_space = pset.difference(precedence_pset)
+        prefix_lens_tight[plen] = plen_space
         space_by_plen[plen] = plen_space.size / covered_space.size
 
         # more specific prefixes take precedence over less specific ones
@@ -168,7 +176,7 @@ def partition(prefixes, protocol='v4'):
     # print('adds up to 1.0?', sum(space_by_plen))
 
     return covered_space, fraction_covered,\
-            list(zip(prefix_lens, space_by_plen, plen_counts))
+            list(zip(prefix_lens_tight, space_by_plen, plen_counts))
 
 def plot_stats(x, y, outdir=IMGDIR, outfile='stats.png', title='Count vs. Length',
               y_logscale=True, txt=''):
@@ -196,6 +204,13 @@ def plot_stats(x, y, outdir=IMGDIR, outfile='stats.png', title='Count vs. Length
     plt.savefig(os.path.join(outdir, outfile), format='png',
                 bbox_inches='tight')
 
+def output(prefixes, protocol='v4'):
+    res = sorted([net.IPNetwork(network) for network in prefixes])
+    triples = map(lambda network: (network.first, network.prefixlen, str(network)), res)
+
+    with open(os.path.join(TRAFFICDIR, 'ip'+protocol, BGPTAB), 'w') as outfile:
+        outfile.write('\n'.join('%d %d %s' %group for group in triples))
+
 def preprocess(protocol='v4'):
     if protocol == 'v4':
         LEN = 33
@@ -203,6 +218,11 @@ def preprocess(protocol='v4'):
         LEN = 129
     # extract addresses
     prefixes = parse_oregon(protocol)
+
+    # output sorted list of prefixes (will be entered in Bloom filter):
+    #     prefix_int prefix_len cidr_network
+    #     16909060 32 1.2.3.4/32
+    output(prefixes, protocol)
 
     # partitions of address space by prefix length
     ipset_covered_by_prefixes, fraction_covered, ipsets_for_each_prefix_length =\
