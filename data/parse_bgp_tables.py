@@ -135,21 +135,30 @@ def partition(prefixes):
     fraction_covered = len(covered_space) / (2**32) # not worrying about reserved addresses
 
     # do sets for each prefix length and calculate size (make sure to calculate difference!)
-    prefix_lens = [net.IPSet([]) for plen in range(33)]
+    print('\nCreating a set of networks for each prefix length...')
+    networks_by_prefix_length = [[] for plen in range(33)]
     for triple in prefixes:
         network, plen, _ = triple
-        prefix_lens[plen].add(net.IPNetwork(network))
+        print('\tprocessing length:', plen)
+        networks_by_prefix_length[plen].append(network)
+    prefix_lens = [net.IPSet(networks_by_prefix_length[plen]) for plen in range(33)]
+
+    print('\nCalculating % space covered by each prefix length...')
     space_by_plen = [0 for i in range(33)]
-    for plen, pset in enumerate(prefix_lens):
-        # more specific prefixes take precedence over less specific ones
-        precedence_pset = reduce((lambda x, y: x.union(y)), prefix_lens[plen+1:])
+    precedence_pset = net.IPSet([])
+    for i in range(32,-1,-1):
+        plen, pset = i, prefix_lens[i]
+        print('\tprocessing length:', plen)
+        if len(pset) == 0: continue
         plen_space = pset.difference(precedence_pset)
         space_by_plen[plen] = len(plen_space) / len(covered_space)
 
-    # verify space covered by each prefix length adds up to space covered by all prefixes
-    print('fraction covered by each prefix:', space_by_plen)
-    print('adds up to 1.0?', sum(space_by_plen))
-    input('continue?')
+        # more specific prefixes take precedence over less specific ones
+        precedence_pset = precedence_pset.union(pset)
+
+    # # verify space covered by each prefix length adds up to space covered by all prefixes
+    # print('fraction covered by each prefix:', space_by_plen)
+    # print('adds up to 1.0?', sum(space_by_plen))
 
     return covered_space, fraction_covered, prefix_lens, space_by_plen
 
@@ -157,7 +166,7 @@ if __name__ == "__main__":
     # extract addresses
     # prefix_lengths = parse_APNIC('v4')
     prefix_lengths, prefixes = parse_oregon('v4')
-    print(prefix_lengths)
+    print('counts by prefix length:', prefix_lengths)
 
     # collect basic stats:
     #   total number of prefixes, number/fraction for each length
