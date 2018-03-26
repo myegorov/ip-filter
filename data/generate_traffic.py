@@ -16,6 +16,10 @@ Usage:
     python3 generate_traffic.py
 '''
 
+# TODO: (2) and (3) are impractical for IPv6 because of vast space
+#       need to do some quick and dirty sampling from prefix space instead
+
+
 from preprocess_bgp_tables import parse_oregon, partition
 import os
 from conf import *
@@ -70,9 +74,12 @@ def generate_by_fraction_of_space(ipset, size=SIZE, protocol='v4'):
             reservoir[j] = ip
 
     print('\nGenerating traffic...')
-    return [(net.IPAddress(ip).__long__(), str(ip)) for ip in reservoir]
+    res = [(net.IPAddress(ip).__long__(), str(ip)) for ip in reservoir]
+    random.shuffle(res)
+    return res
 
 def generate_traffic(protocol='v4'):
+    print('\n-> Working on traffic for protocol %s' %protocol)
     # (1) random traffic (assuming default path exists)
     random_traffic_with_default = generate_random(protocol=protocol)
     output(random_traffic_with_default, protocol=protocol,
@@ -96,7 +103,7 @@ def generate_traffic(protocol='v4'):
 
     # (3) generate traffic in proportion to fraction of each prefix length
     #   out of total count (IP selected only from covered address space)
-    _,space_by_prefix_length, count_by_prefix_length =\
+    prefix_lens_tight, space_by_prefix_length, count_by_prefix_length =\
             zip(*ipsets_for_each_prefix_length)
     totals = sum(count_by_prefix_length) # total number of prefixes in table
     # number of samples to generate from fraction of each prefix length
@@ -108,7 +115,7 @@ def generate_traffic(protocol='v4'):
         if fraction_count_by_prefix_length[i] == 0: continue
         traffic_correlated_with_prefix_count.extend(
             generate_by_fraction_of_space(
-                space_by_prefix_length[i],
+                prefix_lens_tight[i],
                 size=fraction_count_by_prefix_length[i],
                 protocol=protocol)
         )

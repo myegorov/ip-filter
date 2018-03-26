@@ -137,7 +137,6 @@ def partition(prefixes, protocol='v4'):
     for network in prefixes:
         network = net.IPNetwork(network)
         plen = network.prefixlen
-        print('\tprocessing length:', plen)
         networks_by_prefix_length[plen].append(network)
     plen_counts = [len(plen_networks) for plen_networks in networks_by_prefix_length]
     prefix_lens = [net.IPSet(networks_by_prefix_length[plen]) for plen in range(LEN)]
