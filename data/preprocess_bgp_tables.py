@@ -5,49 +5,37 @@
 - output sorted list of prefixes:
     prefix_int prefix_len cidr_network
     16909060 32 1.2.3.4/32
+
+Usage:
+    python3 preprocess_bgp_tables.py
 '''
 
 import os
+from conf import *
 import netaddr as net
 import matplotlib.pyplot as plt
-
-ROOTDIR = os.path.dirname(os.path.realpath(__file__))
-RAWDIR = os.path.join(ROOTDIR,'raw')
-OUTDIR = os.path.join(ROOTDIR,'out')
-IMGDIR = os.path.join(OUTDIR, 'img')
-TRAFFICDIR = os.path.join(OUTDIR, 'traffic')
-
-BGPTAB = 'bgptable.txt' # file name
-
-# IPv4
-IPv4_AS65000 = os.path.join(RAWDIR, 'ipv4', 'as2.0') # http://bgp.potaroo.net/as2.0/bgp-active.html
-IPv4_AS6447 = os.path.join(RAWDIR, 'ipv4', 'as6447') # http://bgp.potaroo.net/as6447/
-
-# IPv6
-IPv6_AS65000 = os.path.join(RAWDIR, 'ipv6', 'as2.0') # http://bgp.potaroo.net/v6/as2.0/index.html
-IPv6_AS6447 = os.path.join(RAWDIR, 'ipv6', 'as6447') # http://bgp.potaroo.net/v6/as6447/
 
 # not worrying about reserved addresses
 IPv4_SPACE = 2**32
 IPv6_SPACE = 2**128
 
-def ipv4_to_int(ipv4):
-    ''' Convert IPv4 string to int:
-            '1.2.3.4' -> 16909060
-    '''
-    parts = ipv4.split('.')
-    return (int(parts[0]) << 24) + (int(parts[1]) << 16) +\
-           (int(parts[2]) << 8) + int(parts[3])
+# def ipv4_to_int(ipv4):
+#     ''' Convert IPv4 string to int:
+#             '1.2.3.4' -> 16909060
+#     '''
+#     parts = ipv4.split('.')
+#     return (int(parts[0]) << 24) + (int(parts[1]) << 16) +\
+#            (int(parts[2]) << 8) + int(parts[3])
 
-def int_to_ipv4(num):
-    ''' Convert an int to IPv4 string:
-            16909060 -> '1.2.3.4'
-    '''
-    res = []
-    for i in range(4):
-        res.append(str(num & 0xff))
-        num >>= 8
-    return '.'.join(list(reversed(res)))
+# def int_to_ipv4(num):
+#     ''' Convert an int to IPv4 string:
+#             16909060 -> '1.2.3.4'
+#     '''
+#     res = []
+#     for i in range(4):
+#         res.append(str(num & 0xff))
+#         num >>= 8
+#     return '.'.join(list(reversed(res)))
 
 def parse_oregon(protocol='v4'):
     ''' Extract network addresses from the Oregon table (IPv4 or IPv6).
