@@ -1,6 +1,6 @@
 '''
 - parse BGP tables from http://bgp.potaroo.net/index-bgp.html
-- plot the stats about prefix count & address space covered
+- plot and output the stats about prefix count & address space covered
 - fetch covered address space and partition the space by prefix length
 - output sorted list of prefixes:
     prefix_int prefix_len cidr_network
@@ -198,6 +198,12 @@ def output(prefixes, protocol='v4'):
     with open(os.path.join(TRAFFICDIR, 'ip'+protocol, BGPTAB), 'w') as outfile:
         outfile.write('\n'.join('%d %d %s' %group for group in triples))
 
+def write_stats(arrays, protocol='v4'):
+    with open(os.path.join(TRAFFICDIR, 'ip'+protocol, STATSFILE), 'w') as outfile:
+        for arr in arrays:
+            outfile.write(','.join([str(elem) for elem in arr]))
+            outfile.write('\n')
+
 def preprocess(protocol='v4'):
     if protocol == 'v4':
         LEN = 33
@@ -239,6 +245,14 @@ def preprocess(protocol='v4'):
                outdir=IMGDIR, outfile='fraction_space_vs_length_%s.png' %protocol,\
                title='Space vs. Length', y_logscale=protocol=='v6',
                txt='%.2f of IP%s space covered' %(fraction_covered, protocol))
+
+    # output stats about prefix distribution
+    # can be used, e.g. by weighting functions
+    stats = [fraction_count_by_prefix_length, list(space_by_prefix_length)]
+    stats[0].insert(0, 'prefix_len_fraction')
+    stats[1].insert(0, 'prefix_space_fraction')
+    write_stats(stats, protocol=protocol)
+
 
 if __name__ == "__main__":
     preprocess('v4')

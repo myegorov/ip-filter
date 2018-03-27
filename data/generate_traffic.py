@@ -5,19 +5,22 @@ Format:
     16909060 1.2.3.4
 
 Traffic patterns:
-- random (assuming default path if not covered by prefix)
+- random (default path may or may not be covered by prefix),
+    use this case for comparing IPv4 vs IPv6;
 - random but only from IP space covered by prefixes (only for BGP table
     where no default exists, i.e. for IPv4 table -- will naturally
-    correlate with addres space coverage by given prefix length)
+    correlate with addres space coverage by given prefix length,
+    impractical for IPv6);
 - in proportion to fraction of each prefix length out of total count for
-    the prefix length (IP selected only from covered address space)
+    the prefix length (IP selected only from covered address space,
+    impractical for IPv6);
 
 Usage:
     python3 generate_traffic.py
 '''
 
 # TODO: (2) and (3) are impractical for IPv6 because of vast space
-#       need to do some quick and dirty sampling from prefix space instead
+#       may need to do some quick and dirty sampling from prefix space instead
 
 
 from preprocess_bgp_tables import parse_oregon, partition
@@ -62,6 +65,8 @@ def generate_by_fraction_of_space(ipset, size=SIZE, protocol='v4'):
     # https://en.wikipedia.org/wiki/Reservoir_sampling
     # only generate from the ipset
     print('\nGenerating address range...')
+    print('ipset.size:', ipset.size)
+    print('Will generate %d IPs...' %size)
     reservoir, i = [], -1
     for ip in ipset:
         if i % 1000000 == 0: print('processed %.5f of address space' %(i/ipset.size))

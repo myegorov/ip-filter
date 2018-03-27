@@ -6,7 +6,8 @@ OUTDIR = os.path.join(ROOTDIR,'out')
 IMGDIR = os.path.join(OUTDIR, 'img')
 TRAFFICDIR = os.path.join(OUTDIR, 'traffic')
 
-BGPTAB = 'bgptable.txt' # file name
+BGPTAB = 'bgptable.txt' # file name for raw & processed prefixes
+STATSFILE = 'stats.txt' # write stats for prefix distribution here
 
 # IPv4
 IPv4_AS65000 = os.path.join(RAWDIR, 'ipv4', 'as2.0') # http://bgp.potaroo.net/as2.0/bgp-active.html
