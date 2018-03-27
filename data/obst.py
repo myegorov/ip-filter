@@ -7,12 +7,18 @@ Compute optimal binary search tree with various weighting functions:
 Using Knuth's dynamic programming algorithm.
 '''
 
-# TODO: construct tree from r matrix
-# TODO: output .dot file & tree plot
-
 import os
 from sys import maxsize
 from conf import *
+
+class Node:
+    def __init__(self, val, left=None, right=None):
+        '''val is the prefix length;
+           left and right are tree Nodes
+        '''
+        self.val = val
+        self.left=left
+        self.right=right
 
 def weigh_equally(protocol='v4'):
     '''Return equal weights for all represented prefix lengths:
@@ -50,7 +56,7 @@ def _construct_w_tab(weights):
             mat[i][j+1] = mat[i][j] + p[j]
     return mat
 
-def construct_tabs(weights):
+def _construct_tabs(weights):
     '''Construct and return upper triangular weight (w), expected cost (e)
         and optimal subtree root (r) matrices, each (n+1) x (n+1).
     '''
@@ -62,7 +68,7 @@ def construct_tabs(weights):
     for i in range(len(weights)):
         e[i][i] = 0.0
         e[i][i+1] = weights[i][0]
-        r[i][i+1] = i
+        r[i][i+1] = i+1
     e[len(e)-1][len(e)-1] = 0.0
 
     for l in range(len(weights)+1):
@@ -72,17 +78,108 @@ def construct_tabs(weights):
                 t = e[i][root-1] + e[root][j] + w[i][j]
                 if t < e[i][j]:
                     e[i][j] = t
-                    r[i][j] = root-1
+                    # r[i][j] = root-1
+                    r[i][j] = root
     return w, e, r
 
+def _build_optimal_bin_search_tree(r, weights):
+    '''Construct optimal binary search tree from the optimal root matrix (r).
+        Caveat: this functions modifies the r matrix in place.
+    '''
+    minn, maxx = 0, len(r)-1
+    root = Node(r[0][-1])
+    root.left = _build_helper(r, minn=minn, maxx=root.val-1)
+    root.right = _build_helper(r, minn=root.val, maxx=maxx)
+
+    # postprocess the tree from weights in place
+    _remap(root, weights)
+    return root
+
+def _build_helper(r, minn, maxx):
+    if minn >= maxx: 
+        return None # base case
+    subroot = Node(r[minn][maxx])
+    subroot.left = _build_helper(r, minn=minn, maxx=subroot.val-1)
+    subroot.right = _build_helper(r, minn=subroot.val, maxx=maxx)
+    return subroot
+
+def _remap(tree, weights):
+    if tree is None: return
+    tree.val = weights[tree.val-1][1]
+    _remap(tree.left, weights)
+    _remap(tree.right, weights)
+
+def _graphviz(tree):
+    '''Returns a Graphviz string similar to:
+        digraph BST {
+            node [fontname="Arial"];
+            15 -> 6;
+            null0 [shape=point];
+            6 -> null0;
+            null1 [shape=point];
+            6 -> null1;
+            15 -> 18;
+            18 -> 17;
+            null2 [shape=point];
+            17 -> null2;
+            null3 [shape=point];
+            17 -> null3;
+            null4 [shape=point];
+            18 -> null4;
+        }
+    '''
+    if not tree: return ''
+    res = ['digraph BST {']
+    res.append('node [fontname="Arial"];')
+
+    if not (tree.left or tree.right):
+        res.append('%d;' %tree.val)
+    else:
+        res.extend(_tree2str(tree))
+    res.append('}')
+    return '\n'.join(res)
+
+def _tree2str(tree):
+    if tree is None: 
+        return ''
+    else:
+        res = []
+        if tree.left is not None:
+            res.append('%d -> %d;' %(tree.val, tree.left.val))
+            res.extend(_tree2str(tree.left))
+        if tree.right is not None:
+            res.append('%d -> %d;' %(tree.val, tree.right.val))
+            res.extend(_tree2str(tree.right))
+        return res
+
+def _output(tree, protocol='v4', fname='balanced_tree.dot'):
+    dotgraph = _graphviz(tree)
+    with open(os.path.join(IMGDIR, 'ip'+protocol, fname), 'w') as outfile:
+        outfile.write(dotgraph)
+
+def obst(protocol='v4', weigh=weigh_equally, plot=False, fname='tree.dot'):
+    '''Return balanced tree. Optionally output .dot file for Graphviz.
+    '''
+    weights = (weigh(protocol=protocol))
+    w, e, r = _construct_tabs(weights)
+
+    # construct the tree
+    tree = _build_optimal_bin_search_tree(r, weights)
+    if plot:
+        _output(tree, protocol=protocol, fname=fname)
+    return tree
 
 if __name__ == "__main__":
-    # print(_construct_w_tab(weights))
-    # print(weigh_by_prefix_count(protocol='v6'))
-    # print(sum([f for f,_ in weigh_by_prefix_range(protocol='v4')])) # 1.0
+    '''Tests + plots.
+    '''
+    # balanced trees for IPv4 and IPv6
+    balanced_tree_v4 = obst('v4', weigh_equally, plot=True, fname='balanced_tree.dot')
+    balanced_tree_v6 = obst('v6', weigh_equally, plot=True, fname='balanced_tree.dot')
 
-    weights = (weigh_equally(protocol='v4'))
-    w, e, r = construct_tabs(weights)
-    # print(e)
-    # print(r)
+    # weights correlated with prefix count
+    prefcount_tree_v4 = obst('v4', weigh_by_prefix_count, plot=True, fname='prefix_count_tree.dot')
+    prefcount_tree_v6 = obst('v6', weigh_by_prefix_count, plot=True, fname='prefix_count_tree.dot')
 
+    # weights correlated with prefix IP address space share
+    addrshare_tree_v4 = obst('v4', weigh_by_prefix_range, plot=True, fname='prefix_addrshare_tree.dot')
+    addrshare_tree_v6 = obst('v6', weigh_by_prefix_range, plot=True, fname='prefix_addrshare_tree.dot')
