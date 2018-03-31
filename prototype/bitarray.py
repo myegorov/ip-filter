@@ -32,6 +32,7 @@ class BitArray:
         if bit >= self.size:
             raise IndexError('Cannot set bit %d in array of size %d' %(bit, self.size))
         self.val |= 1<<bit
+        return 1 # default response for consistency with read_bit() API
 
     def clear_bit(self, bit):
         if bit >= self.size:
