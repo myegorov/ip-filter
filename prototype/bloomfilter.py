@@ -73,7 +73,7 @@ if __name__ == "__main__":
     bf = BloomFilter(1e-5, int(1e6), k=10)
     print(bf)
 
-    bf = BloomFilter(1e-5, int(1e6))
+    bf = BloomFilter(1e-6, int(1e6))
     print(bf)
 
     # insert using only the first hash function

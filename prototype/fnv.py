@@ -7,10 +7,21 @@ from sys import getsizeof
 FNV_OFFSET_BASIS = 0xcbf29ce484222325
 FNV_PRIME = 0x100000001b3
 
-def hash_fnv(num):
+def hash_fnv(obj):
+    '''Returns a hash of obj.
+    '''
+    if not isinstance(obj, int):
+        obj = int.from_bytes(bytes(str(obj), encoding='utf-8'), byteorder='big')
+
     res = FNV_OFFSET_BASIS
-    for i in range(getsizeof(num)): # for each byte
-        byte_chunk = (num>>(8*i)) & 0xff # extract byte
+    for i in range(getsizeof(obj)): # for each byte
+        byte_chunk = (obj>>(8*i)) & 0xff # extract byte
         res ^= byte_chunk
         res *= FNV_PRIME
     return res % (1<<64)
+
+if __name__ == "__main__":
+    print(hash_fnv(123))
+    print(hash_fnv((1232342342432424242424234234234, 12)))
+    print(hash_fnv('abc'))
+    print(hash_fnv((121,'joe')))
