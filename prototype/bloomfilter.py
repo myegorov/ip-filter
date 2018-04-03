@@ -39,35 +39,58 @@ class BloomFilter:
                   100.*self.ba.count_bits()/self.ba.size)
         return res
 
-    def insert(self, key, hashes=None):
+    def _range(self, hashes=None, pattern=None):
+        '''Generate and return a list/generator of hash functions to use.
+        '''
+        if pattern is None:
+            if hashes is None:
+                return range(0, self.k, 1)
+            else:
+                return range(hashes[0], hashes[1]+1,1)
+        res = []
+        count = 0
+        while pattern:
+            if pattern & 1:
+                res.append(hashes[0]+count)
+            count += 1
+            pattern >>= 1
+        return res
+
+    def insert(self, key, hashes=None, pattern=None):
         '''Insert key into Bloom filter. By default using full
         range of hash functions. If hashes is a pair
         of indices, will only use the range between hashes[0] and
         hashes[1], inclusive.
         '''
-        self._helper(key, lamda=self.ba.set_bit, hashes=hashes)
+        self._helper(key, lamda=self.ba.set_bit, 
+                     hashes=self._range(hashes, pattern),
+                     keep_going=True)
 
-    def contains(self, key, hashes=None):
+    def contains(self, key, hashes=None, keep_going=False):
         '''Return 1 (possibly false positive) or 0.
         '''
-        return self._helper(key, lamda=self.ba.read_bit, hashes=hashes)
+        return self._helper(key, lamda=self.ba.read_bit,
+                            hashes=self._range(hashes),
+                            keep_going=keep_going)
 
 
-    def _helper(self, key, lamda=None, hashes=None):
+    def _helper(self, key, lamda=None, hashes=[], keep_going=False):
         '''Insert or look up key (int) in Bloom filter using
-            hash functions hashes[0] to hashes[k-1] inclusive (by default).
+            hash functions from hashes list inclusive (by default).
+            If `keep_going` is True, complete all `hashes` and decode the result.
         '''
-        if hashes is None:
-            hashes = (0, self.k-1)
+        if not hashes: return 0
         hash64 = hash_fnv(key)
         h1 = hash64 & 0x00000000FFFFFFFF
         h2 = hash64 & 0xFFFFFFFF00000000
-        for i in range(hashes[0], hashes[1]+1, 1):
+        decode = 0
+        for i in hashes:
             ix = (h1 + i * h2) % self.ba.size
             res = lamda(ix)
-            if res==0:
+            if res==0 and not keep_going:
                 return 0
-        return 1
+            decode += res<<i
+        return decode
 
 if __name__ == "__main__":
     bf = BloomFilter(1e-5, int(1e6), k=10)
