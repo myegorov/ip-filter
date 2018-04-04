@@ -10,7 +10,6 @@ from mconf import *
 for d in [IPV4DIR, IPV6DIR]:
     sys.path.append(d)
 
-# ENCODING={'v4':5,'v6':6} # min num bits to encode prefix length
 ENCODING={'v4':32,'v6':128}
 
 def encode_ip_prefix_pair(ip, prefix, protocol='v4'):
