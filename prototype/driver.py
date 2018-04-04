@@ -1,5 +1,5 @@
 import sys
-from conf import *
+from mconf import *
 for d in [DATADIR]:
     sys.path.append(d)
 
@@ -7,75 +7,35 @@ from bloomfilter import BloomFilter
 from random import shuffle
 from obst import *
 from utils import encode_ip_prefix_pair, compile_fib_table,\
-                    load_traffic, load_prefixes
+                    load_traffic, load_prefixes, prefix_stats
 
 FPP = 1e-6 # false positive probability setting for Bloom filter
 
-def _build_linear_bloom(prefixes, fpp):
-    # compile range of prefixes for given protocol
-    minn = min([pref_len for (_,pref_len) in prefixes])
-    maxx = max([pref_len for (_,pref_len) in prefixes])
+def build_bloom_filter(protocol='v4', lamda=None, fpp=FPP, fib=None):
+    '''Build and return a Bloom filter containing all prefixes.
+        If provided with `lamda`, return also the optimal binary search tree,
+        else (min, max) of prefix lengths.
 
-    # insert prefixes in Bloom filter
-    bf = BloomFilter(fpp, len(prefixes))
-    count = 0
-    for pair in prefixes:
-        if count % 10000 == 0:
-            print('processsed %.3f of all prefixes' %(count/len(prefixes)))
-        bf.insert(pair, hashes=_choose_hash_funcs(0,end=bf.k))
-        count += 1
-
-    # return bloom_filter and (minn, maxx) range
-    return bf, (minn, maxx)
-
-
-def _build_guided_bloom(prefixes, fpp, root, fib, protocol='v4'):
-    '''Returns a Bloom filer optimized for the `root` bin search tree,
-        and `encoded_pref_lens` dict for looking up the BMP prefix length
-        from hash-encoded bit sequence.
+        Returns a triple (Bloom filter, prefixes, optionally bin search tree)
     '''
+    # [(pref_int, pref_len),...], sorted in ascending order
+    prefixes = load_prefixes(protocol)
+    pref_stats = prefix_stats(prefixes)
 
-    # encoded_pref_lens will be used at lookup: ix -> prefix length for BMP
-    # pref_lens_reverse will be used at build time
-    pref_lens = sorted(list(set([pref_len for (_,pref_len) in prefixes])))
-    minn = pref_lens[0]
-    maxx = pref_lens[-1]
-    # if there's no default, add 0-length prefix length
-    if pref_lens[0] > 0:
-        pref_lens.insert(0, 0)
-    encoded_pref_lens = {ix:pref_len for (ix, pref_len) in enumerate(pref_lens)}
-    pref_lens_reverse = {pref_len:ix for (ix, pref_len) in enumerate(pref_lens)}
-
-    bf = BloomFilter(fpp, len(prefixes))
-
-    for pair in prefixes:
-        prefix, preflen = pair
-        # BMP is an index, can recover prefix length using encoded_pref_lens
-        bmp = _find_bmp(prefix, preflen-1, fib, maxx, minn, pref_lens_reverse)
-
-        current = root
-        count_hit = 0
-        while current:
-            if preflen < current.val:
-                current = current.left
-            elif preflen == current.val:
-                # insert using hash_1..hash_k
-                bf.insert(pair, hashes=_choose_hash_funcs(0,end=bf.k))
-                break
-            else: # preflen > current.val
-                masked = (((1<<current.val) - 1) << (maxx-current.val)) & prefix
-                bf.insert((masked, current.val), hashes=_choose_hash_funcs(0,end=1))
-                count_hit += 1
-                # insert pointers
-                bf.insert((masked, current.val),
-                           hashes=_choose_hash_funcs(count_hit,
-                                                     pattern=bmp))
-
-    return bf, encoded_pref_lens
+    if lamda is None: # build for linear search
+        return _build_linear_bloom(pref_stats, fpp, protocol=protocol)
+    else:
+        bst = obst(protocol, lamda)
+        # TODO: for now passing fib as argument, will NOT need it once
+        #   guided lookup works and lookup_bmp() is refactored
+        return _build_guided_bloom(pref_stats, fpp, bst, fib, protocol=protocol)
 
 def _choose_hash_funcs(start, end=None, pattern=None):
-    '''Generate and return a list/generator of hash functions to use.
-        Exclusive of `end`.
+    '''Generate and return a list/generator of hash functions to use,
+        e.g. [0,1,2,3] if `start`==0, `end`==4. Or encode `patter` as
+        a bitstring (e.g. [7] for `start`==5, `pattern`==4, encoding "100")
+
+        Range is exclusive of `end`.
     '''
     if pattern is None:
         return range(start, end, 1)
@@ -88,9 +48,62 @@ def _choose_hash_funcs(start, end=None, pattern=None):
         pattern >>= 1
     return res
 
+def _build_linear_bloom(prefixes, fpp, protocol='v4'):
+    # insert prefixes in Bloom filter
+    bf = BloomFilter(fpp, len(prefixes['prefixes']))
+    count = 0
+    for pair in prefixes['prefixes']:
+        if count % 10000 == 0:
+            print('build processsed %.3f of all prefixes' %(count/len(prefixes['prefixes'])))
+        count += 1
+
+        bf.insert(encode_ip_prefix_pair(*pair, protocol), hashes=_choose_hash_funcs(0,end=bf.k))
+
+    # return Bloom filter and prefixes dict
+    return bf, prefixes, None
+
+def _build_guided_bloom(prefixes, fpp, root, fib, protocol='v4'):
+    '''Returns a Bloom filer optimized for the `root` bin search tree,
+        and `encoded_pref_lens` dict for looking up the BMP prefix length
+        from hash-encoded bit sequence.
+    '''
+    bf = BloomFilter(fpp, len(prefixes['prefixes']))
+
+    count = 0
+    for pair in prefixes['prefixes']:
+        if count % 10000 == 0:
+            print('build processsed %.3f of all prefixes' %(count/len(prefixes['prefixes'])))
+        count += 1
+
+        prefix, preflen = pair
+        # BMP is an index, can recover prefix length using encoded_pref_lens
+        bmp = _find_bmp(prefix, preflen-1, fib, prefixes['maxx'],
+                        prefixes['minn'], prefixes['len2ix'], protocol=protocol)
+
+        current = root
+        count_hit = 0
+        while current:
+            if preflen < current.val:
+                current = current.left
+            elif preflen == current.val:
+                # insert using hash_1..hash_k
+                pref_encoded = encode_ip_prefix_pair(prefix, preflen, protocol)
+                bf.insert(pref_encoded, hashes=_choose_hash_funcs(0,end=bf.k))
+                break
+            else: # preflen > current.val
+                masked = (((1<<current.val) - 1) << (prefixes['maxx']-current.val)) & prefix
+                pref_encoded = encode_ip_prefix_pair(masked, current.val, protocol)
+                bf.insert(pref_encoded, hashes=_choose_hash_funcs(0,end=1))
+                count_hit += 1
+                # insert pointers
+                bf.insert(pref_encoded,
+                          hashes=_choose_hash_funcs(count_hit,
+                                                    pattern=bmp))
+                current = current.right
+    return bf, prefixes, root
 
 # TODO: re-write _find_bmp() after lookup function is complete
-def _find_bmp(prefix, max_pref_len, fib, maxx, minn, pref_lens_reverse):
+def _find_bmp(prefix, max_pref_len, fib, maxx, minn, len2ix, protocol='v4'):
     '''This is just a temporary crutch. The way to look up the
         best matching prefix (BMP) is to use the prefixes already
         entered in the Bloom filter to date (hence, insert prefixes
@@ -100,74 +113,87 @@ def _find_bmp(prefix, max_pref_len, fib, maxx, minn, pref_lens_reverse):
         For the time being, look up all subprefixes of `prefix` in
         `fib` table, starting with `max_pref_len` length.
 
-        Returns best matching prefix length (list of 0's and 1's bin encoding for int)
-        or empty list if not found.
+        Returns best matching prefix length (encoded as int for prefixes['ix2len'] lookup)
+        or 0 if not found (default route).
     '''
     for pref_len in range(max_pref_len, minn-1, -1):
         mask = ((1<<pref_len) - 1) << (maxx-pref_len)
         test_pref = prefix & mask
-        if (test_pref, pref_len) in fib:
-            return pref_lens_reverse(pref_len)
+        if encode_ip_prefix_pair(test_pref, pref_len, protocol) in fib:
+            return len2ix[pref_len]
+    return len2ix[0]
 
-    return []
-
-def build_bloom_filter(protocol='v4', lamda=None, fpp=FPP):
-    '''Build and return a Bloom filter containing all prefixes.
-        If provided with `lamda`, return also the optimal binary search tree,
-        else (min, max) of prefix lengths.
+def lookup_in_bloom(bf, traffic, path, fib, protocol='v4'):
+    '''Look up `traffic` in `bf`. If unguided search -> range between
+        path[1] to path[0]. If guided search -> `path` is an (optimal)
+        binary search tree to guide the search.
     '''
-    # [(pref_int, pref_len),...], sorted in ascending order
-    prefixes = _load_prefixes(protocol)
+    if isinstance(path, tuple): # linear search
+        return _linear_lookup_bloom(bf, traffic, path[1], path[0], fib, protocol)
+    else:
+        # TODO
+        pass
 
-    if lamda is not None:
-        # compute optimal bin search tree
-        bst = obst(protocol, lamda)
-        # pass bin search tree and other args to helper function
-        # TODO: for now passing fib as argument, will NOT need it once
-        #   guided lookup works and lookup_bmp() is refactored
-        return _build_guided_bloom(prefixes, fpp, bst, fib, protocol=protocol)
-    else: # build for linear search
-        return _build_linear_bloom(prefixes, fpp)
-
-def _linear_lookup_bloom(bf, traffic, maxx, minn, fib):
+def _linear_lookup_bloom(bf, traffic, maxx, minn, fib, protocol):
     found = 0
     false_positives = 0
+    hashes = _choose_hash_funcs(0, end=bf.k)
+
+    count = 0
     for ip in traffic:
+        if count % 10000 == 0:
+            print('lookup processed %.3f of all ips' %(count/len(traffic)))
+        count += 1
+
         for pref_len in range(maxx, minn-1, -1):
             mask = ((1<<pref_len) - 1) << (maxx-pref_len)
             test_pref = ip & mask
-            if bf.contains(test_pref, hashes=_choose_hash_funcs(0,end=bf.k))
-                if (test_pref, pref_len) in fib:
+            pref_encoded = encode_ip_prefix_pair(test_pref, pref_len, protocol)
+            if bf.contains(pref_encoded, hashes=hashes):
+                if pref_encoded in fib:
                     found += 1
                     break
                 else:
                     false_positives += 1
     return found, false_positives
 
-
-def lookup_in_bloom(bf, traffic, path, fib):
-    '''Look up `traffic` in `bf`. If unguided search -> range between
-        path[1] to path[0]. If guided search -> `path` is an (optimal)
-        binary search tree to guide the search.
+def lookup_in_fib(fib, traffic, maxx, minn, protocol='v4'):
+    '''Used in testing Bloom filter.
     '''
-    if isinstance(path, tuple): # linear search
-        return _linear_lookup_bloom(bf, traffic, path[1], path[0], fib)
-    else:
-        # TODO
-        pass
+    found = 0
+    for ip in traffic:
+        for pref_len in range(maxx, minn-1, -1):
+            mask = ((1<<pref_len) - 1) << (maxx-pref_len)
+            test_pref = ip & mask
+            pref_encoded = encode_ip_prefix_pair(test_pref, pref_len, protocol)
+            if pref_encoded in fib:
+                found += 1
+                break
+    return found
 
 if __name__ == "__main__":
 
-    bf, pref_len_range = build_bloom_filter(protocol='v4', fpp=0.01)
-    print(bf) # => BloomFilter(fpp=0.01, n=749362, k=7, ba=BitArray(7182679, %full=51.8))
-    print('range of prefixes:', pref_len_range) # => range of prefixes: (8, 32)
+    print(list(_choose_hash_funcs(start=0, end=10, pattern=None))) # => [0,...,9]
+    print(list(_choose_hash_funcs(start=3, end=4, pattern=None))) # => [3]
+    print(list(_choose_hash_funcs(start=5, pattern=4))) # => [7]
+
+    fib = compile_fib_table(protocol='v4')
+
+    bf_linear, prefixes, _ = build_bloom_filter(protocol='v4', fpp=0.01)
+    print('linear Bloom:', bf_linear) # => BloomFilter(fpp=0.01, n=749362, k=7, ba=(malloc=0.86MB, length=7182679b, %full=51.9))
 
     # build a Bloom filter using a balanced binary search tree
-    bf, bst = build_bloom_filter(protocol='v4', lamda=weigh_equally, fpp=0.01)
+    bf_guided, prefixes, bst = build_bloom_filter(protocol='v4', lamda=weigh_equally, fpp=0.01, fib=fib)
+    print('guided Bloom:', bf_guided) # => BloomFilter(fpp=0.01, n=749362, k=7, ba=(malloc=0.86MB, length=7182679b, %full=59.5))
 
     # shuffle traffic and search
+    traffic = load_traffic(protocol='v4', typ=RANDOM_TRAFFIC)
     shuffle(traffic)
-    num_found, num_false_positive = lookup_in_bloom(bf, traffic, pref_len_range, fib)
-    print('total found %d out of %d (%.2f)' %(num_found, len(traffic), num_found/len(traffic)))
-    print('actual false positive rate: %.2f' %(num_false_positive/(num_found+num_false_positive)))
+    num_found = lookup_in_fib(fib, traffic, prefixes['maxx'], prefixes['minn'], protocol='v4')
+    print('FIB: total found %d out of %d (%.2f)' %(num_found, len(traffic), num_found/len(traffic)))
+
+    shuffle(traffic)
+    num_found, num_false_positive = lookup_in_bloom(bf_linear, traffic, (prefixes['minn'], prefixes['maxx']), fib, 'v4')
+    print('Linear Bloom: total found %d out of %d (%.2f)' %(num_found, len(traffic), num_found/len(traffic)))
     print('target false positive rate: %.sf' %0.01)
+    print('actual false positive rate: %.2f' %(num_false_positive/(num_found+num_false_positive)))

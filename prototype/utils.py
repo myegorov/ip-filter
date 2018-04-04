@@ -6,7 +6,7 @@
 '''
 
 import sys
-from conf import *
+from mconf import *
 for d in [IPV4DIR, IPV6DIR]:
     sys.path.append(d)
 
@@ -58,7 +58,26 @@ def load_prefixes(protocol='v4'):
             prefixes.append((int(parts[0]), int(parts[1])))
     return prefixes
 
+def prefix_stats(prefixes):
+    '''Return a dict of basic stats about the incoming prefixes.
+    '''
+    stats = dict()
+    pref_lens = sorted(list(set([pref_len for (_,pref_len) in prefixes])))
+    stats['minn'] = pref_lens[0]
+    stats['maxx'] = pref_lens[-1]
+    # if there's no default, add 0-length prefix length
+    if pref_lens[0] > 0:
+        pref_lens.insert(0, 0)
+    stats['ix2len'] = pref_lens
+    stats['len2ix'] = {pref_len:ix for (ix, pref_len) in enumerate(pref_lens)}
+    stats['prefixes'] = prefixes
+    return stats
+
 if __name__ == "__main__":
     fib = compile_fib_table(protocol='v4')
     traffic=load_traffic(protocol='v4', typ=RANDOM_TRAFFIC)
-    prefixe=load_prefixes('v4')
+    prefixes=load_prefixes('v4')
+    stats = prefix_stats(prefixes)
+    print('maxx:', stats['maxx'])
+    print('minn:', stats['minn'])
+    print('ix2len:', stats['ix2len'])

@@ -32,12 +32,13 @@ class BloomFilter:
             BitArray size
             % of BitArray set
         '''
-        res = 'BloomFilter(fpp=%0.2f, n=%d, k=%d, ba=(malloc=%dB, length=%db)'\
+        res = 'BloomFilter(fpp=%.2f, n=%d, k=%d, ba=(malloc=%.2fMB, length=%db, %%full=%.1f)'\
                 %(self.fpp,
                   self.num_elements,
                   self.k,
-                  self.ba.buffer_info()[-1],
-                  self.ba.length())
+                  self.ba.buffer_info()[-1]/(1024**2),
+                  self.ba.length(),
+                  100*self.ba.count()/self.ba.length())
         return res
 
     def _set_bit(self, ix):
@@ -77,7 +78,7 @@ class BloomFilter:
             res = lamda(ix)
             if res==False and not keep_going:
                 return 0
-            decode += int(res)<<i
+            decode += int(res)<<(i-hashes[0])
         return decode
 
 if __name__ == "__main__":
@@ -94,3 +95,8 @@ if __name__ == "__main__":
     # look up only using the first hash function
     for i in range(15):
         print(i, bf.contains(i, hashes=[0]))
+
+    print('\n---\n')
+    bf = BloomFilter(1e-5, int(1e6))
+    bf.insert(10, hashes=[7]) # encode start=5, pattern=4
+    print(bf.contains(10, hashes=[5,6,7,8,9], keep_going=True)) # => 4

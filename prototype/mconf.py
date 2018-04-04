@@ -2,9 +2,9 @@ import os
 import sys
 
 CURDIR = os.path.dirname(os.path.realpath(__file__))
-ROOTDIR = os.path.dirname(CURDIR)
+PROOTDIR = os.path.dirname(CURDIR)
 
-DATADIR = os.path.join(ROOTDIR,'data')
+DATADIR = os.path.join(PROOTDIR,'data')
 IPV4DIR = os.path.join(DATADIR, 'out', 'traffic', 'ipv4')
 IPV6DIR = os.path.join(DATADIR, 'out', 'traffic', 'ipv6')
 
