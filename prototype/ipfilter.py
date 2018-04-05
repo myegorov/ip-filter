@@ -12,7 +12,7 @@ from utils import encode_ip_prefix_pair, compile_fib_table,\
 ENCODING={'v4':5,'v6':6} # min num bits to encode prefix length
 FPP = 1e-6 # false positive probability setting for Bloom filter
 
-def build_bloom_filter(protocol='v4', lamda=None, fpp=FPP, fib=None):
+def build_bloom_filter(protocol='v4', lamda=None, fpp=FPP, k=None, num_bits=None, fib=None):
     '''Build and return a Bloom filter containing all prefixes.
         If provided with `lamda`, return also the optimal binary search tree,
         else (min, max) of prefix lengths.
@@ -24,12 +24,12 @@ def build_bloom_filter(protocol='v4', lamda=None, fpp=FPP, fib=None):
     pref_stats = prefix_stats(prefixes)
 
     if lamda is None: # build for linear search
-        return _build_linear_bloom(pref_stats, fpp, protocol=protocol)
+        return _build_linear_bloom(pref_stats, fpp, k, num_bits, protocol=protocol)
     else:
         bst = obst(protocol, lamda)
         # TODO: for now passing fib as argument, will NOT need it once
         #   guided lookup works and lookup_bmp() is refactored
-        return _build_guided_bloom(pref_stats, fpp, bst, fib, protocol=protocol)
+        return _build_guided_bloom(pref_stats, fpp, k, num_bits, bst, fib, protocol=protocol)
 
 def _choose_hash_funcs(start, end=None, pattern=None):
     '''Generate and return a list/generator of hash functions to use,
@@ -49,9 +49,12 @@ def _choose_hash_funcs(start, end=None, pattern=None):
         pattern >>= 1
     return res
 
-def _build_linear_bloom(prefixes, fpp, protocol='v4'):
-    # insert prefixes in Bloom filter
-    bf = BloomFilter(fpp, len(prefixes['prefixes']))
+def _build_linear_bloom(prefixes, fpp, k, num_bits, protocol='v4'):
+    if not (k and num_bits):
+        bf = BloomFilter(fpp, len(prefixes['prefixes']))
+    else:
+        bf = BloomFilter(fpp, len(prefixes['prefixes']), k=k, num_bits=num_bits)
+
     count = 0
     for pair in prefixes['prefixes']:
         if count % 10000 == 0:
@@ -63,12 +66,17 @@ def _build_linear_bloom(prefixes, fpp, protocol='v4'):
     # return Bloom filter and prefixes dict
     return bf, prefixes, None
 
-def _build_guided_bloom(prefixes, fpp, root, fib, protocol='v4'):
+def _build_guided_bloom(prefixes, fpp, k, num_bits, root, fib, protocol='v4'):
     '''Returns a Bloom filer optimized for the `root` bin search tree,
         and `encoded_pref_lens` dict for looking up the BMP prefix length
         from hash-encoded bit sequence.
     '''
-    bf = BloomFilter(fpp, len(prefixes['prefixes']))
+    if not (k and num_bits):
+        bf = BloomFilter(fpp, len(prefixes['prefixes']))
+    else:
+        bf = BloomFilter(fpp, len(prefixes['prefixes']), k=k, num_bits=num_bits)
+
+    count_bmp = 0 # keep track of how often a prefix has an BMP
 
     count = 0
     for pair in prefixes['prefixes']:
@@ -80,6 +88,8 @@ def _build_guided_bloom(prefixes, fpp, root, fib, protocol='v4'):
         # BMP is an index, can recover prefix length using prefixes['ix2len']
         bmp = _find_bmp(prefix, preflen-1, fib, prefixes['maxx'],
                         prefixes['minn'], prefixes['len2ix'], protocol=protocol)
+        if bmp != prefixes['len2ix'][0]: # if not default route
+            count_bmp += 1
 
         current = root
         count_hit = 0
@@ -101,7 +111,7 @@ def _build_guided_bloom(prefixes, fpp, root, fib, protocol='v4'):
                           hashes=_choose_hash_funcs(count_hit,
                                                     pattern=bmp))
                 current = current.right
-    return bf, prefixes, root
+    return bf, prefixes, root, count_bmp
 
 # TODO: re-write _find_bmp() after lookup function is complete
 def _find_bmp(prefix, max_pref_len, fib, maxx, minn, len2ix, protocol='v4'):
@@ -287,15 +297,12 @@ if __name__ == "__main__":
     # bf_linear, prefixes, _ = build_bloom_filter(protocol='v4', fpp=0.01)
     # print('linear Bloom:', bf_linear) # => BloomFilter(fpp=0.01, n=749362, k=7, ba=(malloc=0.86MB, length=7182679b, %full=51.9))
 
-    # TODO: test false positive rate
-    pass
-
     # build a Bloom filter using a balanced binary search tree
-    bf_guided, prefixes, bst = build_bloom_filter(protocol='v4', lamda=weigh_equally, fpp=0.01, fib=fib)
+    # bf_guided, prefixes, bst, count_bmp = build_bloom_filter(protocol='v4', lamda=weigh_equally, fpp=0.01, fib=fib)
+    bf_guided, prefixes, bst, count_bmp = build_bloom_filter(protocol='v4', lamda=weigh_equally, fpp=1e-15, fib=fib)
+    # bf_guided, prefixes, bst, count_bmp = build_bloom_filter(protocol='v4', lamda=weigh_equally, fpp=None, k=7, num_bits=215480360, fib=fib) # => ok fpp rate, but still dismal false negative rate
     print('guided Bloom:', bf_guided) # => BloomFilter(fpp=0.01, n=749362, k=7, ba=(malloc=0.86MB, length=7182679b, %full=59.5))
-
-    # TODO: test false positive rate
-    pass
+    print('%%prefixes have a bmp: %.1f' %(100*count_bmp/len(prefixes['prefixes'])))
 
     # # test with FIB
     # # shuffle traffic and search
@@ -317,3 +324,13 @@ if __name__ == "__main__":
     print('target false positive rate: %.2f' %0.01)
     print('approx false positive rate: %.2f' %(num_false_positive/(num_found+num_false_positive))) # not actual fpp rate
     print('number of times defaulted to linear search: %d' %(num_defaulted_to_linear_search))
+
+    # TODO: test false positive rate
+    pass
+
+    # TODO: test false negative rate
+    #       problem: very high false negative rate
+    #           seems like highish false positive is not the problem, rather false negative is
+    #           optimal Bloom setting (i.e. by setting fpp) seems to work better than arbitrary k and num_bits settings
+    pass
+

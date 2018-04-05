@@ -3,10 +3,10 @@ from fnv import hash_fnv
 from math import log, ceil
 
 class BloomFilter:
-    def __init__(self, fpp, n, k=None):
+    def __init__(self, fpp, n, k=None, num_bits=None):
         ''' Calculate size of bit array, number of hash functions
-                (k, unless specified) and initialize the bitarray (ba), 
-                given:
+                (k, unless specified) or set the params arbitrarily.
+            Initialize the bitarray.
 
             fpp (float): 0.0 <= false positive probability <= 1.0
             n (int): expected number of elements to insert
@@ -15,10 +15,16 @@ class BloomFilter:
         if k is None: # default case, calculate optimal k
             num_bits = ceil(-n * log(fpp) / ((log(2))**2))
             self.k = ceil((num_bits * log(2)) / n)
-        else:
+            self.fpp = fpp
+        elif num_bits is None:
             num_bits = ceil(-(k * n) / (log(1-(fpp)**(1./k))))
             self.k = k
-        self.fpp = fpp
+            self.fpp = fpp
+        else: # arbitrary k and num_bits are passed in
+            print('custom bloom!')
+            num_bits = num_bits
+            self.k = k
+            self.fpp = -1.0 # TODO
         self.num_elements = n
         self.ba = bitarray(num_bits)
         self.ba.setall(False)
