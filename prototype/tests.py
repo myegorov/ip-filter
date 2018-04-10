@@ -387,12 +387,14 @@ def test__default_to_linear_search(protocol='v4'):
     assert found1 == found2
     assert fpps1 == fpps2
 
-# TODO:
 def sanity_check(protocol='v4'):
     '''Test to make sure the number of ip's found in linear BF, guided BF,
         and FIB matches.
     '''
     fib, traffic, prefixes = _common_prep(protocol, RANDOM_TRAFFIC)
+
+    # testing with limited traffic
+    traffic = traffic[:10000]
 
     # test with bin search tree
     bf_guided, prefixes, bst, count_bmp = ipfilter.build_bloom_filter(
@@ -401,7 +403,7 @@ def sanity_check(protocol='v4'):
     print(bf_guided)
 
     print('Starting lookup in guided filter...')
-    num_found, num_false_positive, num_defaulted_to_linear_search =\
+    num_found_g, num_false_positive, num_defaulted_to_linear_search =\
             ipfilter.lookup_in_bloom(bf_guided,
                                      traffic,
                                      fib,
@@ -410,8 +412,8 @@ def sanity_check(protocol='v4'):
                                      minn=prefixes['minn'],
                                      ix2len=prefixes['ix2len'],
                                      protocol=protocol)
-    print('Guided Bloom: total found %d out of %d (%.2f)' %(num_found, len(traffic), num_found/len(traffic)))
-    print('approx false positive rate: %.2f' %(num_false_positive/(num_found+num_false_positive))) # not actual fpp rate
+    print('Guided Bloom: total found %d out of %d (%.2f)' %(num_found_g, len(traffic), num_found_g/len(traffic)))
+    print('approx false positive rate: %.2f' %(num_false_positive/(num_found_g+num_false_positive))) # not actual fpp rate
     print('number of times defaulted to linear search: %d' %(num_defaulted_to_linear_search))
 
     # compare against linear filter (should match)
@@ -419,34 +421,34 @@ def sanity_check(protocol='v4'):
         protocol=protocol, lamda=None, fpp=FPP, k=None,
         num_bits=None, fib=fib)
     print(bf_linear)
-    num_found, num_false_positive =\
+    num_found_l, num_false_positive =\
         ipfilter.lookup_in_bloom(bf_linear,
                                  traffic,
                                  fib,
                                  maxx=prefixes['maxx'],
                                  minn=prefixes['minn'],
                                  protocol=protocol)
-    print('Linear Bloom: total found %d out of %d (%.2f)' %(num_found, len(traffic), num_found/len(traffic)))
-    print('approx false positive rate: %.2f' %(num_false_positive/(num_found+num_false_positive))) # not actual fpp rate
+    print('Linear Bloom: total found %d out of %d (%.2f)' %(num_found_l, len(traffic), num_found_l/len(traffic)))
+    print('approx false positive rate: %.2f' %(num_false_positive/(num_found_l+num_false_positive))) # not actual fpp rate
 
     # compare against FIB (should match)
     print('Starting lookup in FIB...')
-    num_found = _lookup_in_fib(fib, traffic, prefixes['maxx'], prefixes['minn'], protocol=protocol)
-    print('FIB: total found %d out of %d (%.2f)' %(num_found, len(traffic), num_found/len(traffic)))
+    num_found_f = _lookup_in_fib(fib, traffic, prefixes['maxx'], prefixes['minn'], protocol=protocol)
+    print('FIB: total found %d out of %d (%.2f)' %(num_found_f, len(traffic), num_found_f/len(traffic)))
 
-    print("Does the num_found match across linear, guided and FIB?")
+    assert num_found_g == num_found_l == num_found_f
 
 if __name__ == "__main__":
     protocol='v4'
-    # test__choose_hash_funcs()
-    # test__build_linear_bloom(protocol)
-    # test__find_bmp(protocol)
-    # _pattern_insert(protocol)
-    # test__build_guided_bloom(protocol)
-    # test_build_bloom_filter(protocol)
-    # test__linear_lookup_helper(protocol)
-    # test__linear_lookup_bloom(protocol)
-    # test__default_to_linear_search(protocol)
+    test__choose_hash_funcs()
+    test__build_linear_bloom(protocol)
+    test__find_bmp(protocol)
+    _pattern_insert(protocol)
+    test__build_guided_bloom(protocol)
+    test_build_bloom_filter(protocol)
+    test__linear_lookup_helper(protocol)
+    test__linear_lookup_bloom(protocol)
+    test__default_to_linear_search(protocol)
 
     sanity_check(protocol)
 

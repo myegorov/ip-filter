@@ -184,6 +184,11 @@ def _default_to_linear_search(bf, ip, bmp_less_1, minn, fib, protocol='v4'):
     return _linear_lookup_helper(bf, hashes, ip, bmp_less_1, minn, fib, protocol)
 
 # TODO: trace logic & unit test functions below
+def _guided_lookup_helper(bf, root, ip, fib, maxx, minn, ix2len, protocol):
+    # TODO: refactor _guided_lookup_bloom()
+    pass
+
+
 def _guided_lookup_bloom(bf, traffic, root, fib, maxx, minn, ix2len, protocol='v4'):
     '''Currently defaulting to linear search iff led astray by false
         positive hits at any point.
@@ -208,7 +213,7 @@ def _guided_lookup_bloom(bf, traffic, root, fib, maxx, minn, ix2len, protocol='v
 
         current = root # index of where we're in the binary search tree
         count_hit = 0
-        preflen_hit = (0,0) # (last preflen lookup that resulted in a hit (default to 0), count of hits along the path)
+        preflen_hit = (0,count_hit) # (last preflen lookup that resulted in a hit (default to 0), count of hits along the path)
         while current:
             masked = (((1<<max_shift) - 1) << (max_shift-current.val)) & ip
             pref_encoded = encode_ip_prefix_pair(masked, current.val, protocol)
@@ -236,14 +241,18 @@ def _guided_lookup_bloom(bf, traffic, root, fib, maxx, minn, ix2len, protocol='v
         if bmp_ix <= (1<<ENCODING[protocol]) - 1:
             # if false positive hit screws up the decoding, default to linear search
             if bmp_ix == (1<<ENCODING[protocol]) - 1:
-                # check if prefix in FIB
-                # if yes, found the prefix, update found
-                # TODO
-                pass
-                # if not, default to linear search
-                # TODO
-                pass
-
+                # check remaining hash funcs
+                if bf.contains(pref_encoded,
+                               hashes = _choose_hash_funcs(preflen_hit[1] + ENCODING[protocol], end=k)) and\
+                   pref_encoded in fib:
+                        found += 1
+                        continue
+                false_positives += 1
+                # default to linear search of remaining prefixes below point we reached in search that we're confident in
+                f, fp = _default_to_linear_search(bf, ip, bmp-1, minn, fib, protocol)
+                found += f
+                false_positives += fp
+                num_defaulted_to_linear_search += 1
                 continue
             elif bmp_ix >= len(ix2len): # led astray by false positives
                 false_positives += 1
