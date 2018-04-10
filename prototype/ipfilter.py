@@ -47,31 +47,19 @@ def _build_linear_bloom(prefixes, fpp, k, num_bits, protocol='v4'):
 
         bf.insert(encode_ip_prefix_pair(*pair, protocol), hashes=_choose_hash_funcs(0,end=bf.k))
 
-    # return Bloom filter and prefixes dict
-    return bf, prefixes, None
+    return bf, None, None
 
-# TODO: re-write _find_bmp() after lookup function is complete
-def _find_bmp(prefix, max_pref_len, fib, minn, len2ix, protocol='v4'):
-    '''This is just a temporary crutch. The way to look up the
-        best matching prefix (BMP) is to use the prefixes already
-        entered in the Bloom filter to date (hence, insert prefixes
-        into BF in ascending order), i.e. to use the guided lookup
-        in the BF under construction.
-
-        For the time being, look up all subprefixes of `prefix` in
-        `fib` table, starting with `max_pref_len` length.
+def _find_bmp(prefix, bf, root, fib, max_pref_len, minn, len2ix, ix2len, protocol='v4'):
+    '''Look up the best matching prefix (BMP) among the ones previously
+        entered in the Bloom filter (hence, insert prefixes
+        into BF in ascending order).
 
         Returns best matching prefix length (encoded as int for prefixes['ix2len'] lookup)
         or 0 if not found (default route).
     '''
-    max_shift = NUMBITS[protocol]
-
-    for pref_len in range(max_pref_len, minn-1, -1):
-        mask = ((1<<max_shift) - 1) << (max_shift - pref_len)
-        test_pref = prefix & mask
-        if encode_ip_prefix_pair(test_pref, pref_len, protocol) in fib:
-            return len2ix[pref_len]
-    return len2ix[0]
+    preflen, fib_val, _, _ = _guided_lookup_helper(
+                bf, root, prefix, fib, max_pref_len, minn, ix2len, protocol)
+    return len2ix[preflen], fib_val
 
 def _build_guided_bloom(prefixes, fpp, k, num_bits, root, fib, protocol='v4'):
     '''Returns a Bloom filer optimized for the `root` bin search tree,
@@ -95,9 +83,10 @@ def _build_guided_bloom(prefixes, fpp, k, num_bits, root, fib, protocol='v4'):
 
         prefix, preflen = pair
         # BMP is an index, can recover prefix length using prefixes['ix2len']
-        bmp = _find_bmp(prefix, preflen-1, fib, prefixes['minn'],
-                        prefixes['len2ix'], protocol=protocol)
-        if bmp != prefixes['len2ix'][0]: # if not default route
+        bmp, fib_val = _find_bmp(prefix, bf, root, fib, preflen-1, prefixes['minn'],
+                        prefixes['len2ix'], prefixes['ix2len'],
+                        protocol=protocol)
+        if fib_val is not None: # if not default route
             count_bmp += 1
 
         current = root
@@ -120,7 +109,7 @@ def _build_guided_bloom(prefixes, fpp, k, num_bits, root, fib, protocol='v4'):
                           hashes=_choose_hash_funcs(count_hit,
                                                     pattern=bmp))
                 current = current.right
-    return bf, prefixes, root, count_bmp
+    return bf, root, count_bmp
 
 def build_bloom_filter(protocol='v4', lamda=None, fpp=FPP, k=None, num_bits=None, fib=None,
                       prefixes=None, pref_stats=None):
@@ -128,8 +117,8 @@ def build_bloom_filter(protocol='v4', lamda=None, fpp=FPP, k=None, num_bits=None
         If provided with `lamda`, return also the optimal binary search tree,
         else (min, max) of prefix lengths.
 
-        Returns a triple for linear search, quadruple for guided search
-        (Bloom filter, prefixes, & optionally bin search tree and count of BMPs)
+        Returns a triple:
+            (Bloom filter, optionally bin search tree and count of BMPs)
     '''
     # [(pref_int, pref_len),...], sorted in ascending order
     if prefixes is None: # default case, setting prefixes only for testing...
@@ -141,29 +130,26 @@ def build_bloom_filter(protocol='v4', lamda=None, fpp=FPP, k=None, num_bits=None
         return _build_linear_bloom(pref_stats, fpp, k, num_bits, protocol=protocol)
     else:
         bst = obst(protocol, lamda)
-        # TODO: for now passing fib as argument, will NOT need it once
-        #   guided lookup works and lookup_bmp() is refactored, except as final check
         return _build_guided_bloom(pref_stats, fpp, k, num_bits, bst, fib, protocol=protocol)
 
 def _linear_lookup_helper(bf, hashes, ip, maxx, minn, fib, protocol):
     max_shift = NUMBITS[protocol]
 
-    found, false_positives = 0, 0
+    false_positives = 0
     for pref_len in range(maxx, minn-1, -1):
         mask = ((1<<max_shift) - 1) << (max_shift-pref_len)
         test_pref = ip & mask
         pref_encoded = encode_ip_prefix_pair(test_pref, pref_len, protocol)
         if bf.contains(pref_encoded, hashes=hashes):
             if pref_encoded in fib:
-                found += 1
-                break
+                return pref_len, fib[pref_encoded], false_positives
             else:
                 false_positives += 1
 
-    return found, false_positives
+    return 0, None, false_positives
 
 def _linear_lookup_bloom(bf, traffic, maxx, minn, fib, protocol):
-    found, false_positives = 0, 0
+    num_found, false_positives = 0, 0
     hashes = _choose_hash_funcs(0, end=bf.k)
 
     count = 0
@@ -172,10 +158,11 @@ def _linear_lookup_bloom(bf, traffic, maxx, minn, fib, protocol):
             print('lookup processed %.3f of all ips' %(count/len(traffic)))
         count += 1
 
-        f, fp = _linear_lookup_helper(bf, hashes, ip, maxx, minn, fib, protocol)
-        found += f
+        # return pref_len, fib[pref_encoded], false_positives
+        pref_len, fib_val, fp = _linear_lookup_helper(bf, hashes, ip, maxx, minn, fib, protocol)
+        if fib_val is not None: num_found += 1
         false_positives += fp
-    return found, false_positives
+    return num_found, false_positives, 0
 
 def _default_to_linear_search(bf, ip, bmp_less_1, minn, fib, protocol='v4'):
     '''Default to linear search of remaining prefixes below BMP.
@@ -183,11 +170,63 @@ def _default_to_linear_search(bf, ip, bmp_less_1, minn, fib, protocol='v4'):
     hashes = _choose_hash_funcs(0, end=bf.k)
     return _linear_lookup_helper(bf, hashes, ip, bmp_less_1, minn, fib, protocol)
 
-# TODO: trace logic & unit test functions below
+# TODO: unit test functions below
 def _guided_lookup_helper(bf, root, ip, fib, maxx, minn, ix2len, protocol):
-    # TODO: refactor _guided_lookup_bloom()
-    pass
+    ''' Returns resulting prefix length, FIB value (or None if default route), 
+            num false pos, num defaults
+    '''
+    max_shift = NUMBITS[protocol]
+    k = bf.k
+    false_positives = 0
 
+    current = root # index of where we're in the binary search tree
+    count_hit = 0
+    preflen_hit = (0,count_hit) # (last preflen lookup that resulted in a hit (default to 0), count of hits along the path)
+    while current:
+        masked = (((1<<max_shift) - 1) << (max_shift-current.val)) & ip
+        pref_encoded = encode_ip_prefix_pair(masked, current.val, protocol)
+        if not bf.contains(pref_encoded, hashes=[0]): # guided by first hash function
+            current = current.left
+        else:
+            count_hit += 1
+            preflen_hit = (current.val, count_hit)
+            current = current.right
+
+    # current is None, reached leaf of tree
+    if preflen_hit[0] == 0:
+        # return default route
+        return ix2len[preflen_hit[0]], None, 0, 0
+
+    # try decoding BMP (best matching prefix)
+    masked = (((1<<max_shift) - 1) << (max_shift-preflen_hit[0])) & ip
+    pref_encoded = encode_ip_prefix_pair(masked, preflen_hit[0], protocol)
+    bmp_ix = bf.contains(pref_encoded,
+                         hashes=_choose_hash_funcs(preflen_hit[1],
+                                                   end=preflen_hit[1]+ENCODING[protocol]),
+                         keep_going = True)
+
+    # henceforward bmp should always be greater than 0 
+    #   and potentially pointing at the wrong BMP pref length...
+    #   if decoding fails due to false positive, default to linear search
+    pref_hypothesis = preflen_hit[0]
+    if bmp_ix < len(ix2len):
+        pref_hypothesis = ix2len[bmp_ix] # BMP hypothesis
+        masked = (((1<<max_shift) - 1) << (max_shift-pref_hypothesis)) & ip
+        pref_encoded = encode_ip_prefix_pair(masked, pref_hypothesis, protocol)
+
+    # check remaining hash funcs
+    if (bmp_ix == (1<<ENCODING[protocol]) - 1 or bmp_ix < len(ix2len))\
+            and bf.contains(pref_encoded,
+                            hashes = _choose_hash_funcs(preflen_hit[1] + ENCODING[protocol],
+                                                        end=k))\
+            and pref_encoded in fib:
+        return pref_hypothesis, None, 0, 0
+
+    # else default to linear search below longest prefix hit
+    false_positives += 1
+    preflen, fib_val, fp = _default_to_linear_search(bf, ip, preflen_hit[0]-1, minn, fib, protocol)
+    false_positives += fp
+    return preflen, fib_val, false_positives, 1
 
 def _guided_lookup_bloom(bf, traffic, root, fib, maxx, minn, ix2len, protocol='v4'):
     '''Currently defaulting to linear search iff led astray by false
@@ -198,140 +237,32 @@ def _guided_lookup_bloom(bf, traffic, root, fib, maxx, minn, ix2len, protocol='v
             Add a parity bit to encoding to check if BMP makes sense?
             Shoot for very sparse bitarrays (up to current cache bottleneck)?
     '''
-
-    max_shift = NUMBITS[protocol]
-
     # keep track of number of times had to default to linear search
-    found = false_positives = num_defaulted_to_linear_search = 0
-    k = bf.k
-
+    num_found = false_positives = num_defaulted_to_linear_search = 0
     count = 0 # track progress
     for ip in traffic:
         if count % 10000 == 0:
             print('lookup processed %.3f of all ips' %(count/len(traffic)))
         count += 1
 
-        current = root # index of where we're in the binary search tree
-        count_hit = 0
-        preflen_hit = (0,count_hit) # (last preflen lookup that resulted in a hit (default to 0), count of hits along the path)
-        while current:
-            masked = (((1<<max_shift) - 1) << (max_shift-current.val)) & ip
-            pref_encoded = encode_ip_prefix_pair(masked, current.val, protocol)
-            if not bf.contains(pref_encoded, hashes=[0]):
-                current = current.left
-            else:
-                count_hit += 1
-                preflen_hit = (current.val, count_hit)
-                current = current.right
+        # return preflen, fib_val, false_positives, 1
+        preflen, fib_val, fp, nd = _guided_lookup_helper(
+                bf, root, ip, fib, maxx, minn, ix2len, protocol)
+        false_positives += fp
+        num_defaulted_to_linear_search += nd
+        if fib_val is not None: num_found += 1
 
-        # current is None, reached leaf of tree
-        if preflen_hit[0] == 0:
-            continue # actual search would return ix2len[0] <- default route
+    return num_found, false_positives, num_defaulted_to_linear_search
 
-        # try decoding BMP (best matching prefix)
-        masked = (((1<<max_shift) - 1) << (max_shift-preflen_hit[0])) & ip
-        pref_encoded = encode_ip_prefix_pair(masked, preflen_hit[0], protocol)
-        bmp_ix = bf.contains(pref_encoded,
-                             hashes=_choose_hash_funcs(preflen_hit[1], end=preflen_hit[1]+ENCODING[protocol]),
-                             keep_going = True)
-
-        # henceforward bmp should always be greater than 0 and potentially pointing at the wrong BMP pref length...
-        bmp = preflen_hit[0] # default prefix to check all else failing
-        # test remaining hashes
-        if bmp_ix <= (1<<ENCODING[protocol]) - 1:
-            # if false positive hit screws up the decoding, default to linear search
-            if bmp_ix == (1<<ENCODING[protocol]) - 1:
-                # check remaining hash funcs
-                if bf.contains(pref_encoded,
-                               hashes = _choose_hash_funcs(preflen_hit[1] + ENCODING[protocol], end=k)) and\
-                   pref_encoded in fib:
-                        found += 1
-                        continue
-                false_positives += 1
-                # default to linear search of remaining prefixes below point we reached in search that we're confident in
-                f, fp = _default_to_linear_search(bf, ip, bmp-1, minn, fib, protocol)
-                found += f
-                false_positives += fp
-                num_defaulted_to_linear_search += 1
-                continue
-            elif bmp_ix >= len(ix2len): # led astray by false positives
-                false_positives += 1
-                f, fp = _default_to_linear_search(bf, ip, bmp-1, minn, fib, protocol)
-                found += f
-                false_positives += fp
-                num_defaulted_to_linear_search += 1
-                continue
-            else: # bmp_ix is reasonable, could still be led astray by false positives
-                bmp = ix2len[bmp_ix] # BMP hypothesis
-                masked = (((1<<max_shift) - 1) << (max_shift-bmp)) & ip
-                pref_encoded = encode_ip_prefix_pair(masked, bmp, protocol)
-
-                if bf.contains(pref_encoded,
-                                hashes = _choose_hash_funcs(preflen_hit[1] + ENCODING[protocol], end=k)):
-                    if pref_encoded in fib:
-                        found += 1
-                    else:
-                        false_positives += 1
-                        # default to linear search of remaining prefixes below point we reached in search that we're confident in
-                        f, fp = _default_to_linear_search(bf, ip, preflen_hit[0], minn, fib, protocol)
-                        found += f
-                        false_positives += fp
-                        num_defaulted_to_linear_search += 1
-                else: # led astray by false positives, default to linear search
-                    false_positives += 1
-                    # default to linear search of remaining prefixes below BMP
-                    f, fp = _default_to_linear_search(bf, ip, preflen_hit[0], minn, fib, protocol)
-                    found += f
-                    false_positives += fp
-                    num_defaulted_to_linear_search += 1
-
-        # would otherwise return ix2len[bmp] <- default route, effectively no update to `found`
-
-    return found, false_positives, num_defaulted_to_linear_search
-
-def lookup_in_bloom(bf, traffic, fib, path=None, maxx=None, minn=None, ix2len=None, protocol='v4'):
+def lookup_in_bloom(bf, traffic, fib, root=None, maxx=None, minn=None, ix2len=None, protocol='v4'):
     '''Look up `traffic` in `bf`. If unguided search -> range between
-        maxx to minn. If guided search -> `path` is an (optimal)
+        maxx to minn. If guided search -> `root` is an (optimal)
         binary search tree to guide the search.
+
+        Returns count of matched prefixes, count of false positives,
+            count of times defaulted to linear search (only relevant for guided search)
     '''
-    if path is None: # linear search
+    if root is None: # linear search
         return _linear_lookup_bloom(bf, traffic, maxx, minn, fib, protocol)
     else:
-        return _guided_lookup_bloom(bf, traffic, path, fib, maxx, minn, ix2len, protocol=protocol)
-
-if __name__ == "__main__":
-
-
-    # # test with FIB
-    # # shuffle traffic and search
-    # shuffle(traffic)
-    # num_found = lookup_in_fib(fib, traffic, prefixes['maxx'], prefixes['minn'], protocol='v4')
-    # print('FIB: total found %d out of %d (%.2f)' %(num_found, len(traffic), num_found/len(traffic)))
-
-    # # test with linear lookup
-    # shuffle(traffic)
-    # num_found, num_false_positive = lookup_in_bloom(bf_linear, traffic, fib, maxx=prefixes['maxx'], minn=prefixes['minn'], protocol='v4')
-    # print('Linear Bloom: total found %d out of %d (%.2f)' %(num_found, len(traffic), num_found/len(traffic)))
-    # print('target false positive rate: %.2f' %0.01)
-    # print('approx false positive rate: %.2f' %(num_false_positive/(num_found+num_false_positive))) # not actual fpp rate
-
-    # test with bin search tree
-    shuffle(traffic)
-    num_found, num_false_positive, num_defaulted_to_linear_search = lookup_in_bloom(bf_guided, traffic, fib, path=bst, maxx=prefixes['maxx'], minn=prefixes['minn'], ix2len=prefixes['ix2len'], protocol='v4')
-    print('Guided Bloom: total found %d out of %d (%.2f)' %(num_found, len(traffic), num_found/len(traffic)))
-    print('target false positive rate: %.2f' %0.01)
-    print('approx false positive rate: %.2f' %(num_false_positive/(num_found+num_false_positive))) # not actual fpp rate
-    print('number of times defaulted to linear search: %d' %(num_defaulted_to_linear_search))
-
-    # TODO: test false positive rate
-    pass
-
-    # TODO: test false negative rate
-    #       problem: very high false negative rate
-    #           seems like highish false positive is not the problem, rather false negative is
-    #           optimal Bloom setting (i.e. by setting fpp) seems to work better than arbitrary k and num_bits settings
-    pass
-
-    # TODO: print how many times defaulted to linear search compared to total num of IPs looked up
-    # TODO: currently looks like it almost exclusively finds on linear search, guided search of no use
-
+        return _guided_lookup_bloom(bf, traffic, root, fib, maxx, minn, ix2len, protocol=protocol)
