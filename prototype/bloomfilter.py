@@ -16,12 +16,12 @@ class BloomFilter:
             num_bits = ceil(-n * log(fpp) / ((log(2))**2))
             self.k = ceil((num_bits * log(2)) / n)
             self.fpp = fpp
-        elif num_bits is None:
+        elif num_bits is None: # arbitrary k
             num_bits = ceil(-(k * n) / (log(1-(fpp)**(1./k))))
             self.k = k
             self.fpp = fpp
-        else: # arbitrary k and num_bits are passed in
-            print('custom bloom!')
+        else: # arbitrary k and num_bits are passed in, NOT an optimal BF w.r.t. bitarray size and k funcs!
+            assert num_bits > 0 and k > 0
             num_bits = num_bits
             self.k = k
             self.fpp = -1.0 # TODO
@@ -38,7 +38,7 @@ class BloomFilter:
             BitArray size
             % of BitArray set
         '''
-        res = 'BloomFilter(fpp=%.2f, n=%d, k=%d, ba=(malloc=%.2fMB, length=%db, %%full=%.1f)'\
+        res = 'BloomFilter(fpp=%.8f, n=%d, k=%d, ba=(malloc=%.2fMB, length=%db, %%full=%.1f))'\
                 %(self.fpp,
                   self.num_elements,
                   self.k,
@@ -61,7 +61,8 @@ class BloomFilter:
                      keep_going=True)
 
     def contains(self, key, hashes=[], keep_going=False):
-        '''Return 1 (possibly false positive) or 0.
+        '''Return non-zero number if present, else 0.
+            The returned number can be sometimes interpreted as index.
         '''
         return self._helper(key, lamda=self.ba.__getitem__,
                             hashes=hashes,
@@ -77,6 +78,8 @@ class BloomFilter:
         hash64 = hash_fnv(key)
         h1 = hash64 & 0x00000000FFFFFFFF
         h2 = hash64 & 0xFFFFFFFF00000000
+        # h1 = hash_fnv(key)
+        # h2 = hash(key)
         decode = 0
         size = self.ba.length()
         for i in hashes:

@@ -17,14 +17,14 @@ def encode_ip_prefix_pair(ip, prefix, protocol='v4'):
     '''
     return (prefix << ENCODING[protocol]) + ip
 
-def compile_fib_table(protocol='v4'):
+def compile_fib_table(protocol='v4', infile=PREFIX_FILE):
     '''Load prefixes into a hash table.
        Returns FIB table (dict): { encoded(pref_int, pref_len): pref_str }
             e.g. for IPv4: {103095992320: '1.0.0.0/24', ...}
     '''
     indir = IPV4DIR if protocol=='v4' else IPV6DIR
     fib = dict()
-    with open (os.path.join(indir, PREFIX_FILE), 'r') as infile:
+    with open (os.path.join(indir, infile), 'r') as infile:
         for line in infile:
             parts = line.strip().split()
             if len(parts) != 3: continue
@@ -47,10 +47,10 @@ def load_traffic(protocol='v4', typ=RANDOM_TRAFFIC):
         raise FileNotFoundError('No such file: "%s"' %fpath)
     return traffic
 
-def load_prefixes(protocol='v4'):
+def load_prefixes(protocol='v4', infile=PREFIX_FILE):
     prefixes = []
     indir = IPV4DIR if protocol=='v4' else IPV6DIR
-    with open (os.path.join(indir, PREFIX_FILE), 'r') as infile:
+    with open (os.path.join(indir, infile), 'r') as infile:
         for line in infile:
             parts = line.strip().split()
             if len(parts) != 3: continue
