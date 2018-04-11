@@ -15,9 +15,7 @@ def plot_vbar(x, y, outdir=EXPERIMENTS, outfile='stats.png', title='Count vs. Me
     width = 0.5
     for ys in y:
         ax.bar(x, ys, width, color="red")
-    yoffset = 0.1 * max(y)
     if y_logscale:
-        yoffset = 0
         ax.set_yscale('log')
 
     # plt.xticks(range(x[0], x[-1]+1, len(x)//16), rotation=45)

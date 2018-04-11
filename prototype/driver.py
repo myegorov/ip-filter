@@ -386,8 +386,8 @@ def test_num_hash_funcs(fib, traffic, pref_stats):
 if __name__ == "__main__":
 
     # tests
-    fib, traffic, pref_stats = _common_prep(protocol='v4', traffic_pattern=RANDOM_TRAFFIC)
     test_traffic_patterns()
+    fib, traffic, pref_stats = _common_prep(protocol='v4', traffic_pattern=RANDOM_TRAFFIC)
     test_bitarray_size(fib, traffic, pref_stats)
     test_num_hash_funcs(fib, traffic, pref_stats)
 
