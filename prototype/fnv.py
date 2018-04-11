@@ -3,10 +3,12 @@
 https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
 '''
 from sys import getsizeof
+from profiler import count_invocations
 
 FNV_OFFSET_BASIS = 0xcbf29ce484222325
 FNV_PRIME = 0x100000001b3
 
+@count_invocations
 def hash_fnv(obj):
     '''Returns a hash of obj.
     '''

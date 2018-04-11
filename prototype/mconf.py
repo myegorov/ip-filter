@@ -5,6 +5,7 @@ CURDIR = os.path.dirname(os.path.realpath(__file__))
 PROOTDIR = os.path.dirname(CURDIR)
 
 DATADIR = os.path.join(PROOTDIR,'data')
+EXPERIMENTS = os.path.join(DATADIR, 'out', 'experiments')
 IPV4DIR = os.path.join(DATADIR, 'out', 'traffic', 'ipv4')
 IPV6DIR = os.path.join(DATADIR, 'out', 'traffic', 'ipv6')
 

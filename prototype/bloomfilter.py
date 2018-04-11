@@ -1,6 +1,7 @@
 from bitarray import bitarray
 from fnv import hash_fnv
 from math import log, ceil
+from profiler import count_invocations
 
 class BloomFilter:
     def __init__(self, fpp, n, k=None, num_bits=None):
@@ -60,6 +61,7 @@ class BloomFilter:
                      hashes=hashes,
                      keep_going=True)
 
+    @count_invocations
     def contains(self, key, hashes=[], keep_going=False):
         '''Return non-zero number if present, else 0.
             The returned number can be sometimes interpreted as index.
@@ -78,8 +80,6 @@ class BloomFilter:
         hash64 = hash_fnv(key)
         h1 = hash64 & 0x00000000FFFFFFFF
         h2 = hash64 & 0xFFFFFFFF00000000
-        # h1 = hash_fnv(key)
-        # h2 = hash(key)
         decode = 0
         size = self.ba.length()
         for i in hashes:

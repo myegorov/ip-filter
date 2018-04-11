@@ -21,6 +21,7 @@ from bloomfilter import BloomFilter
 from random import shuffle
 from obst import *
 from utils import encode_ip_prefix_pair, load_prefixes, prefix_stats
+from profiler import count_invocations
 
 ENCODING={'v4':5,'v6':6} # min num bits to encode prefix length
 NUMBITS={'v4':32,'v6':128}
@@ -124,8 +125,9 @@ def _build_guided_bloom(prefixes, fpp, k, num_bits, root, fib, protocol='v4'):
                 current = current.right
     return bf, root, count_bmp
 
-def build_bloom_filter(protocol='v4', lamda=None, fpp=FPP, k=None, num_bits=None, fib=None,
-                      prefixes=None, pref_stats=None):
+def build_bloom_filter(protocol='v4', lamda=None, fpp=FPP, k=None, 
+                       num_bits=None, fib=None, prefixes=None, 
+                       pref_stats=None):
     '''Build and return a Bloom filter containing all prefixes.
         If provided with `lamda`, return also the optimal binary search tree,
         else (min, max) of prefix lengths.
@@ -177,6 +179,7 @@ def _linear_lookup_bloom(bf, traffic, maxx, minn, fib, protocol):
         false_positives += fp
     return num_found, false_positives, 0
 
+@count_invocations
 def _default_to_linear_search(bf, ip, bmp_less_1, minn, fib, protocol='v4'):
     '''Default to linear search of remaining prefixes below BMP.
     '''
