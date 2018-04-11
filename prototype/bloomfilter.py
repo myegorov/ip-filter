@@ -61,7 +61,6 @@ class BloomFilter:
                      hashes=hashes,
                      keep_going=True)
 
-    @count_invocations
     def contains(self, key, hashes=[], keep_going=False):
         '''Return non-zero number if present, else 0.
             The returned number can be sometimes interpreted as index.
@@ -83,12 +82,17 @@ class BloomFilter:
         decode = 0
         size = self.ba.length()
         for i in hashes:
+            self._register() # count iterations
             ix = (h1 + i * h2) % size
             res = lamda(ix)
             if res==False and not keep_going:
                 return 0
             decode += int(res)<<(i-hashes[0])
         return decode
+
+    @count_invocations
+    def _register(self):
+        pass
 
 if __name__ == "__main__":
     bf = BloomFilter(1e-5, int(1e6), k=10)

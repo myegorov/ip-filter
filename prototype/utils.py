@@ -78,7 +78,7 @@ def load_traffic(protocol='v4', typ=RANDOM_TRAFFIC):
         with open(fpath, 'r') as infile:
             for line in infile:
                 parts = line.strip().split()
-                if len(parts) != 2: continue
+                if len(parts) < 1: continue
                 traffic.append(int(parts[0]))
     else:
         raise FileNotFoundError('No such file: "%s"' %fpath)
