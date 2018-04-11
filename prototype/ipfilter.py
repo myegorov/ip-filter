@@ -1,3 +1,17 @@
+'''ipfilter.py
+
+This module builds on plain vanilla BloomFilter to construct
+a guided BloomFilter that exposes the following API:
+
+    build_bloom_filter(protocol='v4', lamda=None, fpp=FPP, k=None,
+                        num_bits=None, fib=None,
+                        prefixes=None, pref_stats=None)
+
+    lookup_in_bloom(bf, traffic, fib, root=None, maxx=None, minn=None,
+                        ix2len=None, protocol='v4')
+
+    The lookup can perform linear or guided search and compile stats (in progress).
+'''
 import sys
 from mconf import *
 for d in [DATADIR]:
@@ -6,8 +20,7 @@ for d in [DATADIR]:
 from bloomfilter import BloomFilter
 from random import shuffle
 from obst import *
-from utils import encode_ip_prefix_pair,\
-                    load_prefixes, prefix_stats
+from utils import encode_ip_prefix_pair, load_prefixes, prefix_stats
 
 ENCODING={'v4':5,'v6':6} # min num bits to encode prefix length
 NUMBITS={'v4':32,'v6':128}
@@ -170,7 +183,6 @@ def _default_to_linear_search(bf, ip, bmp_less_1, minn, fib, protocol='v4'):
     hashes = _choose_hash_funcs(0, end=bf.k)
     return _linear_lookup_helper(bf, hashes, ip, bmp_less_1, minn, fib, protocol)
 
-# TODO: unit test functions below
 def _guided_lookup_helper(bf, root, ip, fib, maxx, minn, ix2len, protocol):
     ''' Returns resulting prefix length, FIB value (or None if default route), 
             num false pos, num defaults
@@ -205,8 +217,7 @@ def _guided_lookup_helper(bf, root, ip, fib, maxx, minn, ix2len, protocol):
                                                    end=preflen_hit[1]+ENCODING[protocol]),
                          keep_going = True)
 
-    # henceforward bmp should always be greater than 0 
-    #   and potentially pointing at the wrong BMP pref length...
+    # note that bmp_ix is potentially pointing at the wrong BMP pref length...
     #   if decoding fails due to false positive, default to linear search
     pref_hypothesis = preflen_hit[0]
     if bmp_ix < len(ix2len):
@@ -220,7 +231,7 @@ def _guided_lookup_helper(bf, root, ip, fib, maxx, minn, ix2len, protocol):
                             hashes = _choose_hash_funcs(preflen_hit[1] + ENCODING[protocol],
                                                         end=k))\
             and pref_encoded in fib:
-        return pref_hypothesis, None, 0, 0
+        return pref_hypothesis, fib[pref_encoded], 0, 0
 
     # else default to linear search below longest prefix hit
     false_positives += 1
@@ -259,7 +270,7 @@ def lookup_in_bloom(bf, traffic, fib, root=None, maxx=None, minn=None, ix2len=No
         maxx to minn. If guided search -> `root` is an (optimal)
         binary search tree to guide the search.
 
-        Returns count of matched prefixes, count of false positives,
+        Returns triple: count of matched prefixes, count of false positives,
             count of times defaulted to linear search (only relevant for guided search)
     '''
     if root is None: # linear search

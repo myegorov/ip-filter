@@ -255,13 +255,16 @@ def test_build_bloom_filter(protocol='v4'):
     '''
     fib, traffic, pref_stats = _common_prep('v4', RANDOM_TRAFFIC)
 
+    # testing with limited traffic
+    traffic = traffic[:10000]
+
     # (1) build linear and guided Bloom filters
-    bf_linear, prefixes, _ = ipfilter.build_bloom_filter(
+    bf_linear, _, _ = ipfilter.build_bloom_filter(
         protocol='v4', lamda=None, fpp=FPP, k=None,
         num_bits=None, fib=fib)
     print(bf_linear)
 
-    bf_guided, prefixes, bst, count_bmp = ipfilter.build_bloom_filter(
+    bf_guided, bst, count_bmp = ipfilter.build_bloom_filter(
         protocol='v4', lamda=weigh_equally, fpp=FPP, k=None,
         num_bits=None, fib=fib)
     print(bf_guided)
@@ -277,30 +280,30 @@ def test_build_bloom_filter(protocol='v4'):
     fpp_linear = fpp_guided = 0
     for ip in traffic:
         if _lookup_item_in_fib(fib, ip,
-                prefixes['maxx'], prefixes['minn'], protocol='v4')\
+                pref_stats['maxx'], pref_stats['minn'], protocol='v4')\
                 is not None:
             print('...')
 
-            bfl_found, bfl_fpps = ipfilter._linear_lookup_helper(
+            _, fib_val, bfl_fpps = ipfilter._linear_lookup_helper(
                     bf_linear,
                     list(range(bf_linear.k)),
                     ip,
-                    prefixes['maxx'],
-                    prefixes['minn'],
+                    pref_stats['maxx'],
+                    pref_stats['minn'],
                     fib,
                     protocol)
-            if bfl_found < 1:
+            if fib_val is None:
                 raise Exception("Found false negative in linear BF: %d" %ip)
 
-            bfg_found, bfg_fpps = ipfilter._linear_lookup_helper(
+            _, fib_val, bfg_fpps = ipfilter._linear_lookup_helper(
                     bf_guided,
                     list(range(bf_guided.k)),
                     ip,
-                    prefixes['maxx'],
-                    prefixes['minn'],
+                    pref_stats['maxx'],
+                    pref_stats['minn'],
                     fib,
                     protocol)
-            if bfg_found < 1:
+            if fib_val is None:
                 raise Exception("Found false negative in guided BF: %d" %ip)
 
 
@@ -309,26 +312,26 @@ def test__linear_lookup_helper(protocol='v4'):
     prefixes = load_prefixes(protocol=protocol, infile='bgptable_tests.txt')
     pref_stats = prefix_stats(prefixes)
 
-    bf, prefixes, _ = ipfilter._build_linear_bloom(pref_stats,\
+    bf, _, _ = ipfilter._build_linear_bloom(pref_stats,\
                                 FPP, None, None,  protocol=protocol)
 
-    found, _ = ipfilter._linear_lookup_helper(bf,
+    preflen, fib_val,  _ = ipfilter._linear_lookup_helper(bf,
                                                list(range(bf.k)),
                                                16777216, # 16777216 24 1.0.0.0/24
                                                32,
                                                8,
                                                fib,
                                                protocol)
-    assert found == 1
+    assert preflen == 24
 
-    found, _ = ipfilter._linear_lookup_helper(bf,
+    preflen, fib_val, _ = ipfilter._linear_lookup_helper(bf,
                                                list(range(bf.k)),
                                                16777215,
                                                32,
                                                8,
                                                fib,
                                                protocol)
-    assert found == 0
+    assert preflen == 0
 
 def test__linear_lookup_bloom(protocol='v4'):
     fib = compile_fib_table(protocol=protocol, infile='bgptable_tests.txt')
@@ -336,44 +339,44 @@ def test__linear_lookup_bloom(protocol='v4'):
     pref_stats = prefix_stats(prefixes)
     traffic = [16777214, 3221225472, 16777216, 16778240, 16777215] # 3/5 known
 
-    bf, prefixes, _ = ipfilter._build_linear_bloom(pref_stats,\
+    bf, _, _ = ipfilter._build_linear_bloom(pref_stats,\
                                 FPP, None, None,  protocol=protocol)
-    found, _ = ipfilter._linear_lookup_bloom(bf,
-                                             traffic,
-                                             32,
-                                             9,
-                                             fib,
-                                             protocol)
-    assert found == 3
+    num_found, _, _ = ipfilter._linear_lookup_bloom(bf,
+                                                 traffic,
+                                                 32,
+                                                 9,
+                                                 fib,
+                                                 protocol)
+    assert num_found == 3
 
 def test__default_to_linear_search(protocol='v4'):
     fib = compile_fib_table(protocol=protocol, infile='bgptable_tests.txt')
     prefixes = load_prefixes(protocol=protocol, infile='bgptable_tests.txt')
     pref_stats = prefix_stats(prefixes)
 
-    bf, prefixes, _ = ipfilter._build_linear_bloom(pref_stats,\
+    bf, _, _ = ipfilter._build_linear_bloom(pref_stats,\
                                 FPP, None, None,  protocol=protocol)
 
     # this one should be found
-    found1, fpps1 = ipfilter._linear_lookup_helper(bf,
+    preflen1, fibval1, fpps1 = ipfilter._linear_lookup_helper(bf,
                                                list(range(bf.k)),
                                                16777216, # 16777216 24 1.0.0.0/24
                                                32,
                                                8,
                                                fib,
                                                protocol)
-    found2, fpps2 = ipfilter._default_to_linear_search(
+    preflen2, fibval2, fpps2 = ipfilter._default_to_linear_search(
         bf,
         16777216,
         32,
         8,
         fib,
         protocol)
-    assert found1 == found2
+    assert preflen1 == preflen2
     assert fpps1 == fpps2
 
     # this one shouldn't be found in either
-    found1, fpps1 = ipfilter._linear_lookup_helper(bf,
+    preflen1, fibval1, fpps1 = ipfilter._linear_lookup_helper(bf,
                                                list(range(bf.k)),
                                                16777215,
                                                32,
@@ -381,27 +384,27 @@ def test__default_to_linear_search(protocol='v4'):
                                                fib,
                                                protocol)
 
-    found2, fpps2 = ipfilter._default_to_linear_search(
+    preflen2, fibval2, fpps2 = ipfilter._default_to_linear_search(
         bf,
         16777215,
         32,
         8,
         fib,
         protocol)
-    assert found1 == found2
+    assert preflen1 == preflen2
     assert fpps1 == fpps2
 
 def sanity_check(protocol='v4'):
     '''Test to make sure the number of ip's found in linear BF, guided BF,
         and FIB matches.
     '''
-    fib, traffic, prefixes = _common_prep(protocol, RANDOM_TRAFFIC)
+    fib, traffic, pref_stats = _common_prep(protocol, RANDOM_TRAFFIC)
 
     # testing with limited traffic
     traffic = traffic[:10000]
 
     # test with bin search tree
-    bf_guided, prefixes, bst, count_bmp = ipfilter.build_bloom_filter(
+    bf_guided, bst, count_bmp = ipfilter.build_bloom_filter(
         protocol=protocol, lamda=weigh_equally, fpp=None, k=20,
         num_bits=215480360, fib=fib)
     print(bf_guided)
@@ -411,47 +414,48 @@ def sanity_check(protocol='v4'):
             ipfilter.lookup_in_bloom(bf_guided,
                                      traffic,
                                      fib,
-                                     path=bst,
-                                     maxx=prefixes['maxx'],
-                                     minn=prefixes['minn'],
-                                     ix2len=prefixes['ix2len'],
+                                     root=bst,
+                                     maxx=pref_stats['maxx'],
+                                     minn=pref_stats['minn'],
+                                     ix2len=pref_stats['ix2len'],
                                      protocol=protocol)
     print('Guided Bloom: total found %d out of %d (%.2f)' %(num_found_g, len(traffic), num_found_g/len(traffic)))
     print('approx false positive rate: %.2f' %(num_false_positive/(num_found_g+num_false_positive))) # not actual fpp rate
     print('number of times defaulted to linear search: %d' %(num_defaulted_to_linear_search))
 
     # compare against linear filter (should match)
-    bf_linear, prefixes, _ = ipfilter.build_bloom_filter(
+    bf_linear, _, _ = ipfilter.build_bloom_filter(
         protocol=protocol, lamda=None, fpp=FPP, k=None,
         num_bits=None, fib=fib)
     print(bf_linear)
-    num_found_l, num_false_positive =\
+
+    num_found_l, num_false_positive, _ =\
         ipfilter.lookup_in_bloom(bf_linear,
                                  traffic,
                                  fib,
-                                 maxx=prefixes['maxx'],
-                                 minn=prefixes['minn'],
+                                 maxx=pref_stats['maxx'],
+                                 minn=pref_stats['minn'],
                                  protocol=protocol)
     print('Linear Bloom: total found %d out of %d (%.2f)' %(num_found_l, len(traffic), num_found_l/len(traffic)))
     print('approx false positive rate: %.2f' %(num_false_positive/(num_found_l+num_false_positive))) # not actual fpp rate
 
     # compare against FIB (should match)
     print('Starting lookup in FIB...')
-    num_found_f = _lookup_in_fib(fib, traffic, prefixes['maxx'], prefixes['minn'], protocol=protocol)
+    num_found_f = _lookup_in_fib(fib, traffic, pref_stats['maxx'], pref_stats['minn'], protocol=protocol)
     print('FIB: total found %d out of %d (%.2f)' %(num_found_f, len(traffic), num_found_f/len(traffic)))
 
     assert num_found_g == num_found_l == num_found_f
 
 if __name__ == "__main__":
     protocol='v4'
-    # test__choose_hash_funcs()
-    # test__build_linear_bloom(protocol)
-    # test__find_bmp(protocol)
-    # _pattern_insert(protocol)
-    # test__build_guided_bloom(protocol)
+    test__choose_hash_funcs()
+    test__build_linear_bloom(protocol)
+    test__find_bmp(protocol)
+    _pattern_insert(protocol)
+    test__build_guided_bloom(protocol)
     test_build_bloom_filter(protocol)
-    # test__linear_lookup_helper(protocol)
-    # test__linear_lookup_bloom(protocol)
-    # test__default_to_linear_search(protocol)
+    test__linear_lookup_helper(protocol)
+    test__linear_lookup_bloom(protocol)
+    test__default_to_linear_search(protocol)
 
-    # sanity_check(protocol)
+    sanity_check(protocol)
