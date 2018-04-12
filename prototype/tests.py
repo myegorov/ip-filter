@@ -15,8 +15,8 @@ from obst import *
 FPP = 1e-6 # false positive probability setting for Bloom filter
 
 def _common_prep(protocol='v4', typ=RANDOM_TRAFFIC):
-    fib = compile_fib_table(protocol='v4')
-    traffic = load_traffic(protocol='v4', typ=RANDOM_TRAFFIC)
+    fib = compile_fib_table(protocol=protocol)
+    traffic = load_traffic(protocol=protocol, typ=RANDOM_TRAFFIC)
     prefixes = load_prefixes(protocol=protocol)
     pref_stats = prefix_stats(prefixes)
     return fib, traffic, pref_stats

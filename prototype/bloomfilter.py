@@ -1,6 +1,7 @@
 from bitarray import bitarray
 from fnv import hash_fnv
 from math import log, ceil
+from profiler import count_invocations
 
 class BloomFilter:
     def __init__(self, fpp, n, k=None, num_bits=None):
@@ -78,17 +79,20 @@ class BloomFilter:
         hash64 = hash_fnv(key)
         h1 = hash64 & 0x00000000FFFFFFFF
         h2 = hash64 & 0xFFFFFFFF00000000
-        # h1 = hash_fnv(key)
-        # h2 = hash(key)
         decode = 0
         size = self.ba.length()
         for i in hashes:
+            self._register() # count iterations
             ix = (h1 + i * h2) % size
             res = lamda(ix)
             if res==False and not keep_going:
                 return 0
             decode += int(res)<<(i-hashes[0])
         return decode
+
+    @count_invocations
+    def _register(self):
+        pass
 
 if __name__ == "__main__":
     bf = BloomFilter(1e-5, int(1e6), k=10)
