@@ -11,6 +11,7 @@ for d in [IPV4DIR, IPV6DIR]:
     sys.path.append(d)
 
 from profiler import count_invocations
+from random import shuffle
 
 ENCODING={'v4':32,'v6':128}
 
@@ -82,6 +83,8 @@ def load_traffic(protocol='v4', typ=RANDOM_TRAFFIC):
                 traffic.append(int(parts[0]))
     else:
         raise FileNotFoundError('No such file: "%s"' %fpath)
+    # it should in general be already random, but just in case
+    shuffle(traffic)
     return traffic
 
 def load_prefixes(protocol='v4', infile=PREFIX_FILE):

@@ -45,13 +45,13 @@ def plot_vbar(x, y, outdir=EXPERIMENTS, outfile='stats.png', title='Count vs. Me
 
 def plot_scatter(seqs, res, outfile, title, xlabel, ylabel, 
                  outdir=EXPERIMENTS, x_logscale=True,
-                 y_logscale=True):
+                 y_logscale=True, key='percent_full'):
 
     print("\nPlotting the stats to %s" %(os.path.join(outdir, outfile)))
 
     # munge the data
-    linear = [[i for j in range(len(seqs))] for i in res['linear']['percent_full']]
-    guided = [[i for j in range(len(seqs))] for i in res['guided']['percent_full']]
+    linear = [[i for j in range(len(seqs))] for i in res['linear'][key]]
+    guided = [[i for j in range(len(seqs))] for i in res['guided'][key]]
     lseries = list(zip(linear, res['linear']['ncalls']))
     gseries = list(zip(guided, res['guided']['ncalls']))
 
@@ -100,4 +100,4 @@ if __name__ == "__main__":
     ylabel = 'count'
     res = {'linear': {'percent_full': [0.05, 0.1, 0.5, 0.9], 'ncalls': [[1,2,3,4], [10,20,30,40], [100,200,300,400], [1000,2000,3000,4000]], 'bf': ['a','b','c','d']},
            'guided': {'percent_full': [0.15, 0.2, 0.8, 0.99], 'ncalls': [[1,2,3,4], [2,3,4,5], [3,4,5,6], [4,5,6,7]], 'bf': ['a','b','c','d']}}
-    plot_scatter(seqs, res, ofile, title, xlabel, ylabel)
+    plot_scatter(seqs, res, ofile, title, xlabel, ylabel, key='percent_full')

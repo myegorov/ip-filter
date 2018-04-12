@@ -1,0 +1,7 @@
+test_bitarray_size(): vary bitarray size, keeping k constant, for guided, invocations of funcs,xs=[bf._register(), hash_fnv(), fib.__contains__(), ipfilter._default_to_linear_search], yaxis=ncalls
+Guided search: lookup/hashing stats
+Percent full
+Count of invocations
+99.95581964763385;52.87988195304667;7.248387277615463;0.7492863386714224;0.07519552129948177
+(396.38, 25.90, 19.73, 1.00);(41.34, 14.83, 0.67, 0.83);(20.19, 7.81, 0.67, 0.29);(18.26, 7.02, 0.67, 0.14);(18.05, 6.94, 0.67, 0.12)
+BloomFilter(fpp=-1.00000000, n=749362, k=20, ba=(malloc=0.26MB, length=2154804b, %full=100.0));BloomFilter(fpp=-1.00000000, n=749362, k=20, ba=(malloc=2.57MB, length=21548036b, %full=52.9));BloomFilter(fpp=-1.00000000, n=749362, k=20, ba=(malloc=25.69MB, length=215480360b, %full=7.2));BloomFilter(fpp=-1.00000000, n=749362, k=20, ba=(malloc=256.87MB, length=2154803600b, %full=0.7));BloomFilter(fpp=-1.00000000, n=749362, k=20, ba=(malloc=2568.73MB, length=21548036000b, %full=0.1))

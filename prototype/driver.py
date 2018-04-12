@@ -290,7 +290,7 @@ def test_bitarray_size(fib, traffic, pref_stats):
     title = 'Count by metric: bitarray size'
     xlabel = '% bitarray full'
     ylabel = 'count'
-    plot_scatter(seqs, res, ofile, title, xlabel, ylabel)
+    plot_scatter(seqs, res, ofile, title, xlabel, ylabel, key='percent_full')
 
     print('\n\nAll done!')
 
@@ -396,13 +396,13 @@ def test_num_hash_funcs(fib, traffic, pref_stats):
     title = 'Count by metric: number of hash funcs'
     xlabel = 'count of hash funcs'
     ylabel = 'count'
-    plot_scatter(seqs, res, ofile, title, xlabel, ylabel)
+    plot_scatter(seqs, res, ofile, title, xlabel, ylabel, key='k', x_logscale=False)
 
     print('\n\nAll done!')
 
 if __name__ == "__main__":
     # tests
-    # test_traffic_patterns()
+    test_traffic_patterns()
     fib, traffic, pref_stats = _common_prep(protocol='v4', traffic_pattern=RANDOM_TRAFFIC)
-    # test_bitarray_size(fib, traffic, pref_stats)
+    test_bitarray_size(fib, traffic, pref_stats)
     test_num_hash_funcs(fib, traffic, pref_stats)
