@@ -45,9 +45,9 @@ from utils import compile_fib_table, load_traffic, load_prefixes, prefix_stats
 import ipfilter
 from obst import *
 from fnv import hash_fnv
-from plot import plot_vbar
+from plot import plot_vbar, plot_scatter
 
-THROTTLE = 10000 # test with representative but limited amount of traffic
+THROTTLE = 100000 # test with representative but limited amount of traffic
 
 # "optimal" guided Bloom settings, TODO: tune
 K = 20
@@ -85,8 +85,10 @@ def test_traffic_patterns(fpp_linear=1e-6, num_bits_guided=BITARR_SIZE, k_guided
     test_matrix = {
         # TODO: try also using weigh_equally throughout
         'v4': [(RANDOM_TRAFFIC, weigh_equally, 'random.txt'),
-               (PREF_COUNT_TRAFFIC, weigh_by_prefix_count, 'count.txt'),
-               (PREF_SPACE_TRAFFIC, weigh_by_prefix_range, 'space.txt'),
+               # (PREF_COUNT_TRAFFIC, weigh_by_prefix_count, 'count.txt'),
+               (PREF_COUNT_TRAFFIC, weigh_equally, 'count.txt'),
+               # (PREF_SPACE_TRAFFIC, weigh_by_prefix_range, 'space.txt'),
+               (PREF_SPACE_TRAFFIC, weigh_equally, 'space.txt'),
                (PREFIX_FILE, weigh_equally, 'prefixTraffic.txt')], # try also weigh_by_prefix_count?
         'v6': [(RANDOM_TRAFFIC, weigh_equally, 'random.txt'),
                (PREFIX_FILE, weigh_equally, 'prefixTraffic.txt')] # try also weigh_by_prefix_count?
@@ -100,7 +102,7 @@ def test_traffic_patterns(fpp_linear=1e-6, num_bits_guided=BITARR_SIZE, k_guided
 
         for traffic_pattern in test_matrix[protocol]:
             infile, lamda, outfile = traffic_pattern
-            print('processing %s...' %outfile)
+            print('processing ..._%s...' %outfile)
             traffic = load_traffic(protocol=protocol, typ=infile)
 
             ## LINEAR
@@ -118,10 +120,10 @@ def test_traffic_patterns(fpp_linear=1e-6, num_bits_guided=BITARR_SIZE, k_guided
             _lookup_wrapper(bf_linear, traffic, fib, pref_stats, protocol, bst=None, typ='linear')
 
             # record the ending ncalls for each function of interest
-            ncontains = bf_linear._register.ncalls - ncontains
-            nfnv = hash_fnv.ncalls - nfnv
-            nfib = fib.__contains__.ncalls - nfib
-            ndefault = ipfilter._default_to_linear_search.ncalls - ndefault
+            ncontains = (bf_linear._register.ncalls - ncontains)/THROTTLE
+            nfnv = (hash_fnv.ncalls - nfnv)/THROTTLE
+            nfib = (fib.__contains__.ncalls - nfib)/THROTTLE
+            ndefault = (ipfilter._default_to_linear_search.ncalls - ndefault)/THROTTLE
 
             # record experiment to file in EXPERIMENTS: header, plot title, xaxis, yaxis, xs, ys, misc info
             with open(os.path.join(EXPERIMENTS, 
@@ -132,7 +134,7 @@ def test_traffic_patterns(fpp_linear=1e-6, num_bits_guided=BITARR_SIZE, k_guided
                 lines.append('Function') # xaxis title
                 lines.append('Count of invocations') # yaxis title
                 lines.append('bitarray lookup, hash(), FIB lookup, defaults') # xs
-                lines.append('%d, %d, %d, %d' %(ncontains, nfnv, nfib, ndefault)) # ys
+                lines.append('%.2f, %.2f, %.2f, %.2f' %(ncontains, nfnv, nfib, ndefault)) # ys
                 lines.append('linear BF: %s' %bf_linear) # any extra info
                 out.write('\n'.join(lines))
 
@@ -156,32 +158,32 @@ def test_traffic_patterns(fpp_linear=1e-6, num_bits_guided=BITARR_SIZE, k_guided
                             bst=bst, typ='guided')
 
             # record the ending ncalls for each function of interest
-            ncontains = bf_guided._register.ncalls - ncontains
-            nfnv = hash_fnv.ncalls - nfnv
-            nfib = fib.__contains__.ncalls - nfib
-            ndefault = ipfilter._default_to_linear_search.ncalls - ndefault
+            ncontains = (bf_guided._register.ncalls - ncontains)/THROTTLE
+            nfnv = (hash_fnv.ncalls - nfnv)/THROTTLE
+            nfib = (fib.__contains__.ncalls - nfib)/THROTTLE
+            ndefault = (ipfilter._default_to_linear_search.ncalls - ndefault)/THROTTLE
 
             # record experiment to file in EXPERIMENTS: header, plot title, xaxis, yaxis, xs, ys, misc info
             with open(os.path.join(EXPERIMENTS, 
                                    'guided_traffic_'+protocol+'_'+outfile), 
                       'w') as out:
                 lines = ["test_traffic_patterns(): using 'hand tuned' params for guided, invocations of funcs,xs=[bf.contains(), hash_fnv(), fib.__contains__(), ipfilter._default_to_linear_search], yaxis=ncalls"] # header
-                lines.append('Guided search: lookup/hashing stats') # plot title
+                lines.append('Guided search: stats per packet') # plot title
                 lines.append('Function') # xaxis title
                 lines.append('Count of invocations') # yaxis title
                 lines.append('bitarray lookup, hash(), FIB lookup, defaults') # xs
-                lines.append('%d, %d, %d, %d' %(ncontains, nfnv, nfib, ndefault)) # ys
+                lines.append('%.2f, %.2f, %.2f, %.2f' %(ncontains, nfnv, nfib, ndefault)) # ys
                 lines.append('guided BF: %s' %bf_guided) # any extra info
                 out.write('\n'.join(lines))
 
 
-            # TODO: plot
-            xs = ['bit lookup', 'hash()', 'FIB lookup', 'defaults']
+            # plot
+            fname, _ = os.path.splitext(outfile)
+            xs = ['bit lookups', 'hash()', 'FIB lookups', 'defaults']
             ys_guided = [ncontains, nfnv, nfib, ndefault]
-            outfile = 'guided_traffic_'+protocol+'_'+outfile+'_.png'
-            title = 'Count by metric'
-            plot_vbar(xs, [ys_linear, ys_guided], outfile, title)
-
+            ofile = 'traffic_'+protocol+'_'+fname+'.svg'
+            title = 'Count by metric: %s-type traffic' %fname
+            plot_vbar(xs, [ys_linear, ys_guided], outfile=ofile, title=title)
 
     print('\n\nAll done!')
 
@@ -190,8 +192,8 @@ def test_bitarray_size(fib, traffic, pref_stats):
     '''
     print('\n\ntest_bitarray_size()\n\n')
     test_matrix = {
-        'linear': [round(BITARR_SIZE * 10**factor) for factor in range(-3,3,1)],
-        'guided': [round(BITARR_SIZE * 10**factor) for factor in range(-3,3,1)]
+        'linear': [round(BITARR_SIZE * 10**factor) for factor in range(-2,3,1)],
+        'guided': [round(BITARR_SIZE * 10**factor) for factor in range(-2,3,1)]
     }
     protocol='v4'
     res = {}
@@ -222,10 +224,10 @@ def test_bitarray_size(fib, traffic, pref_stats):
                 _lookup_wrapper(bf_linear, traffic, fib, pref_stats, protocol, bst=None, typ='linear')
 
                 # record the ending ncalls for each function of interest
-                ncontains = bf_linear._register.ncalls - ncontains
-                nfnv = hash_fnv.ncalls - nfnv
-                nfib = fib.__contains__.ncalls - nfib
-                ndefault = ipfilter._default_to_linear_search.ncalls - ndefault
+                ncontains = (bf_linear._register.ncalls - ncontains)/THROTTLE
+                nfnv = (hash_fnv.ncalls - nfnv)/THROTTLE
+                nfib = (fib.__contains__.ncalls - nfib)/THROTTLE
+                ndefault = (ipfilter._default_to_linear_search.ncalls - ndefault)/THROTTLE
 
                 res[typ]['ncalls'].append((ncontains, nfnv, nfib, ndefault))
             else:
@@ -249,10 +251,10 @@ def test_bitarray_size(fib, traffic, pref_stats):
                                 bst=bst, typ='guided')
 
                 # record the ending ncalls for each function of interest
-                ncontains = bf_guided._register.ncalls - ncontains
-                nfnv = hash_fnv.ncalls - nfnv
-                nfib = fib.__contains__.ncalls - nfib
-                ndefault = ipfilter._default_to_linear_search.ncalls - ndefault
+                ncontains = (bf_guided._register.ncalls - ncontains)/THROTTLE
+                nfnv = (hash_fnv.ncalls - nfnv)/THROTTLE
+                nfib = (fib.__contains__.ncalls - nfib)/THROTTLE
+                ndefault = (ipfilter._default_to_linear_search.ncalls - ndefault)/THROTTLE
 
                 res[typ]['ncalls'].append((ncontains, nfnv, nfib, ndefault))
 
@@ -265,13 +267,12 @@ def test_bitarray_size(fib, traffic, pref_stats):
         lines.append('Percent full') # xaxis title
         lines.append('Count of invocations') # yaxis title
         lines.append(';'.join([str(val) for val in res['linear']['percent_full']])) # xs
-        lines.append(';'.join(['(%d, %d, %d, %d)' %quad for quad in res['linear']['ncalls']])) # ys
+        lines.append(';'.join(['(%.2f, %.2f, %.2f, %.2f)' %quad for quad in res['linear']['ncalls']])) # ys
         lines.append(';'.join(res['linear']['bf'])) # any extra info
         out.write('\n'.join(lines))
 
-
     # record experiment to file in EXPERIMENTS: header, plot title, xaxis, yaxis, xs, ys, misc info
-    with open(os.path.join(EXPERIMENTS, 
+    with open(os.path.join(EXPERIMENTS,
                         'guided_bitarraySize_v4_random.txt'),
             'w') as out:
         lines = ["test_bitarray_size(): vary bitarray size, keeping k constant, for guided, invocations of funcs,xs=[bf._register(), hash_fnv(), fib.__contains__(), ipfilter._default_to_linear_search], yaxis=ncalls"] # header
@@ -279,9 +280,17 @@ def test_bitarray_size(fib, traffic, pref_stats):
         lines.append('Percent full') # xaxis title
         lines.append('Count of invocations') # yaxis title
         lines.append(';'.join([str(val) for val in res['guided']['percent_full']])) # xs
-        lines.append(';'.join(['(%d, %d, %d, %d)' %quad for quad in res['guided']['ncalls']])) # ys
+        lines.append(';'.join(['(%.2f, %.2f, %.2f, %.2f)' %quad for quad in res['guided']['ncalls']])) # ys
         lines.append(';'.join(res['guided']['bf'])) # any extra info
         out.write('\n'.join(lines))
+
+    # plot
+    seqs = ['bit lookups', 'hash()', 'FIB lookups', 'defaults']
+    ofile = 'bitarraySize_'+protocol+'_random.svg'
+    title = 'Count by metric: bitarray size'
+    xlabel = '% bitarray full'
+    ylabel = 'count'
+    plot_scatter(seqs, res, ofile, title, xlabel, ylabel)
 
     print('\n\nAll done!')
 
@@ -290,8 +299,8 @@ def test_num_hash_funcs(fib, traffic, pref_stats):
     '''
     print('\n\ntest_num_hash_funcs()\n\n')
     test_matrix = {
-        'linear': [list(range(7,25,1))],
-        'guided': [list(range(7,25,1))]
+        'linear': list(range(7,25,1)),
+        'guided': list(range(7,25,1))
     }
     protocol='v4'
     res = {}
@@ -307,7 +316,7 @@ def test_num_hash_funcs(fib, traffic, pref_stats):
                 ## LINEAR
                 bf_linear, _, _ = ipfilter.build_bloom_filter(
                     protocol=protocol, lamda=None, fpp=None, k=k_size,
-                    num_bits=BITARR_SIZE/10, fib=fib)
+                    num_bits=round(BITARR_SIZE/10), fib=fib)
                 res[typ]['k'].append(k_size)
                 res[typ]['bf'].append(str(bf_linear))
                 print(bf_linear)
@@ -322,10 +331,10 @@ def test_num_hash_funcs(fib, traffic, pref_stats):
                 _lookup_wrapper(bf_linear, traffic, fib, pref_stats, protocol, bst=None, typ='linear')
 
                 # record the ending ncalls for each function of interest
-                ncontains = bf_linear._register.ncalls - ncontains
-                nfnv = hash_fnv.ncalls - nfnv
-                nfib = fib.__contains__.ncalls - nfib
-                ndefault = ipfilter._default_to_linear_search.ncalls - ndefault
+                ncontains = (bf_linear._register.ncalls - ncontains)/THROTTLE
+                nfnv = (hash_fnv.ncalls - nfnv)/THROTTLE
+                nfib = (fib.__contains__.ncalls - nfib)/THROTTLE
+                ndefault = (ipfilter._default_to_linear_search.ncalls - ndefault)/THROTTLE
 
                 res[typ]['ncalls'].append((ncontains, nfnv, nfib, ndefault))
             else:
@@ -349,10 +358,10 @@ def test_num_hash_funcs(fib, traffic, pref_stats):
                                 bst=bst, typ='guided')
 
                 # record the ending ncalls for each function of interest
-                ncontains = bf_guided._register.ncalls - ncontains
-                nfnv = hash_fnv.ncalls - nfnv
-                nfib = fib.__contains__.ncalls - nfib
-                ndefault = ipfilter._default_to_linear_search.ncalls - ndefault
+                ncontains = (bf_guided._register.ncalls - ncontains)/THROTTLE
+                nfnv = (hash_fnv.ncalls - nfnv)/THROTTLE
+                nfib = (fib.__contains__.ncalls - nfib)/THROTTLE
+                ndefault = (ipfilter._default_to_linear_search.ncalls - ndefault)/THROTTLE
 
                 res[typ]['ncalls'].append((ncontains, nfnv, nfib, ndefault))
 
@@ -365,7 +374,7 @@ def test_num_hash_funcs(fib, traffic, pref_stats):
         lines.append('Num hash funcs') # xaxis title
         lines.append('Count of invocations') # yaxis title
         lines.append(';'.join([str(val) for val in res['linear']['k']])) # xs
-        lines.append(';'.join(['(%d, %d, %d, %d)' %quad for quad in res['linear']['ncalls']])) # ys
+        lines.append(';'.join(['(%.2f, %.2f, %.2f, %.2f)' %quad for quad in res['linear']['ncalls']])) # ys
         lines.append(';'.join(res['linear']['bf'])) # any extra info
         out.write('\n'.join(lines))
 
@@ -377,19 +386,23 @@ def test_num_hash_funcs(fib, traffic, pref_stats):
         lines.append('Num hash funcs') # xaxis title
         lines.append('Count of invocations') # yaxis title
         lines.append(';'.join([str(val) for val in res['guided']['k']])) # xs
-        lines.append(';'.join(['(%d, %d, %d, %d)' %quad for quad in res['guided']['ncalls']])) # ys
+        lines.append(';'.join(['(%.2f, %.2f, %.2f, %.2f)' %quad for quad in res['guided']['ncalls']])) # ys
         lines.append(';'.join(res['guided']['bf'])) # any extra info
         out.write('\n'.join(lines))
+
+    # plot
+    seqs = ['bit lookups', 'hash()', 'FIB lookups', 'defaults']
+    ofile = 'numHashFuncs_'+protocol+'_random.svg'
+    title = 'Count by metric: number of hash funcs'
+    xlabel = 'count of hash funcs'
+    ylabel = 'count'
+    plot_scatter(seqs, res, ofile, title, xlabel, ylabel)
 
     print('\n\nAll done!')
 
 if __name__ == "__main__":
-
     # tests
-    test_traffic_patterns()
+    # test_traffic_patterns()
     fib, traffic, pref_stats = _common_prep(protocol='v4', traffic_pattern=RANDOM_TRAFFIC)
-    test_bitarray_size(fib, traffic, pref_stats)
+    # test_bitarray_size(fib, traffic, pref_stats)
     test_num_hash_funcs(fib, traffic, pref_stats)
-
-    # plots
-    # TODO
