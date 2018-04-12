@@ -49,7 +49,9 @@ from plot import plot_vbar, plot_scatter
 
 THROTTLE = 100000 # test with representative but limited amount of traffic
 
-# "optimal" guided Bloom settings, TODO: tune
+# # "optimal" guided Bloom settings, TODO: tune
+# K = 10 # does well
+# BITARR_SIZE=21548036 # also fares well, esp. for IPv6, and is of manageable size!
 K = 20
 BITARR_SIZE=215480360
 
