@@ -1,0 +1,313 @@
+\documentclass[conference,compsoc]{IEEEtran}
+\usepackage{graphicx, subcaption}
+\usepackage{algorithm, algpseudocode}
+\usepackage{enumitem}
+\usepackage{fixltx2e}
+\hyphenation{op-tical net-works semi-conduc-tor}
+
+
+\begin{document}
+\title{Cache-aware data structures for packet forwarding tables on general purpose CPUs}
+\author{\IEEEauthorblockN{Maksim Yegorov}
+\IEEEauthorblockA{Computer Science Department\\
+Rochester Institute of Technology, NY\\ Email: \texttt{mey5634@rit.edu}
+}}
+
+\maketitle
+
+\begin{abstract}
+TBD...
+
+\end{abstract}
+
+\section{TODO}
+
+Factor out some repeated routines from the algorithm(s) -- e.g. the
+encoding of the (length, prefix) pair in preparation for searching in
+BF.
+
+\section{Background}
+TBD...
+
+\section{Related Work}
+TBD...
+
+\section{Solution}
+
+\subsection{Goals}
+
+We have identified two opportunities for improvement in the context of
+the Bloom filter-based solutions to the longest prefix matching problem.
+The Bloom filter (BF) data structure was originally used by Dharmapurikar et al.
+\cite{Dharmapurikar}
+for parallel lookup implemented in hardware. By contrast, the software
+implementations on conventional hardware pay a hefty penalty -- in computation
+cost and code complexity -- to parallelize the lookup. The default solution
+has been a linear search (see Algorithm~\ref{alg:linearsearch}). The time
+complexity of Algorithm~\ref{alg:linearsearch} is $\mathcal{O}(n)$, where $n$
+is the number of distinct prefix lengths in the BF. We
+propose to improve on the linear search for Bloom filter in this paper.
+
+\begin{algorithm}
+\caption{Linear search for longest matching prefix}\label{alg:linearsearch}
+\begin{algorithmic}[1]
+\Procedure{LinearSearch}{$bf, ip, fib, maxlen$}
+\State $plen \gets maxlen$\Comment{max prefix length}
+\While{$plen \geq \textsc{minlen}$}\Comment{min prefix length}
+
+  \State $tmp \gets$ extract $plen$ most significant bits in IP
+  \State $key \gets \texttt{encode(tmp, plen)}$
+  \State $res \gets \texttt{bf.contains(key,}$
+                \State $\hspace*{36mm} \texttt{[hash\textsubscript{1}..hash\textsubscript{bf.k}])}$
+  \If{$res \not= 0 \;\&\; key \in fib$}
+      \State \textbf{return} $plen$
+  \Else
+    $\;plen \gets plen - 1$
+  \EndIf
+\EndWhile
+\State \textbf{return} \textsc{pref\textsubscript{default}}\Comment{default route}
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+
+Second, any scheme that utilizes a probabilistic data structure, such as
+the Bloom filter, to identify candidate(s) for the \emph{longest matching
+prefix} (LMP) would generally need to look up the candidate(s)
+in a forwarding table -- as the definitive membership
+test and the store of the next hop information. Current solutions typically
+store this information in an off-chip hash table. This operation is therefore
+a bottleneck of the probabilistic filter-based schemes. While we have
+not yet implemented or tested the proposed guided search data structure
+specifically for FIB storage, we suspect that the method we propose may be broadly
+applicable to any key-value store application that
+
+\begin{enumerate}[label=(\alph*)]
+\item is defined as a many-to-few kind of mapping, and
+\item tolerates (i.e. self-corrects for) a certain probability of error.
+\end{enumerate}
+
+In the case of the FIB table, we propose to store the outgoing link information
+in a compact array. We would then insert encoded \texttt{(index, prefix)} pairs
+into a guided BF data structure (separate from the BF used to
+encode \texttt{(length, prefix)} pairs). For forwarding table applications, this appears 
+feasible on today's off-the-shelf hardware, where we would typically have 
+on the order of a
+million keys, with array indices (outgoing interfaces) numbering in the low 
+hundreds.
+
+From our preliminary analysis, both Bloom filters (\texttt{BF\textsubscript{fib}}
+and \texttt{BF\textsubscript{lmp}}) can fit in L3 cache for the
+current backbone router FIB table sizes that we've had the opportunity to
+survey. The implementation and a cost-benefit analysis of such a FIB 
+implementation remain to be done.
+
+
+\subsection{Implementation}
+
+The key observation that we draw upon is that any one of the routine
+tests -- whether a particular bit in a Bloom filter bit array
+is set -- contains valuable information, in that the correlation between
+a set bit and a prefix being a member of the set is much higher than chance
+(see Fig.~\ref{fig:fpp}). The cost of calculations performed as part of
+validating the membership of a given key in a BF gives us an incentive to
+assign meaning to specific hashing calculations. In other words, we will 
+define a simple protocol that exploits the overhead associated with the
+BF hashing calculations to direct our search for the LMP.
+
+\begin{figure}[h]
+\centering
+\includegraphics[height=2.2in]{../img/PvsK.png}
+  \caption{False positive probability vs. number of hash functions in an \emph{optimal} BF}
+\label{fig:fpp}
+\end{figure}
+
+
+Algorithm~\ref{alg:build} contains the pseudocode to \emph{build} the data 
+structure amenable to such a guided search. The underlying idea is to
+pre-compute in advance the traversal path for an IP that could possibly match a given
+prefix -- at the time of inserting the prefix into the BF.
+Algorithm~\ref{alg:guidedsearch} suggests
+a procedure to \emph{lookup} an IP in a data structure built by
+Algorithm~\ref{alg:build}. The
+algorithms assign specific meaning to the \emph{first} hashing function
+to direct our search left or right in a binary search tree. In addition, we
+reserve $n$ hashing functions ($n=5$ for IPv4, $n=6$ for IPv6) to encode
+the best matching prefix as a bit sequence. The $n$ bits, when decoded,
+will index the prefix length in a compact array of the prefix lengths
+contained in the router's FIB table (e.g., $0 \rightarrow 0$, $1 \rightarrow 8$, etc.
+for the IPv4 table used in our experiments).
+
+Both the \emph{build} and the \emph{lookup} procedures assume an (optimal)
+binary search tree to guide any search. Such an optimal tree could be
+constructed for a given router if the historic traffic data and its 
+correlation with the fraction of space covered by each prefix length
+were known. In the absence of such information, we can conservatively
+assume random traffic and a balanced binary search tree (as in the
+classic binary search algorithm).
+
+The \emph{build} and the \emph{lookup} procedures are mutually recursive
+in that the \emph{build} invokes the \emph{lookup} to identify the
+best matching (shorter) prefix in a BF constructed to date for a (longer) prefix 
+about to be inserted. Therefore, we will first sort the prefixes, before inserting them 
+into the BF in the ascending order.
+
+\begin{algorithm}
+  \caption{Build a BF to enable guided search for LMP}\label{alg:build}
+  \begin{algorithmic}[1]
+
+    \Procedure{Insert}{$bf, pref, bst$}
+
+    \State $bmp \gets \texttt{Lookup(}$\Comment{best match prefix}
+        \State $\hspace*{20mm} \texttt{bf,}$
+        \State $\hspace*{20mm} \texttt{encode(pref, pref.len-1),}$
+        \State $\hspace*{20mm} \texttt{bst)}$
+    \State $curr \gets bst$\Comment{start at root}
+    \State $count_{hit} \gets 0$\Comment{times branched right}
+
+    \While{$curr \not= null$}\Comment{not leaf}
+
+      \If{$pref.len < curr.plen$}
+        \State $curr \gets curr.left$
+      \ElsIf{$pref.len = curr.plen$}
+        \State $key \gets \texttt{encode(pref, pref.len)}$
+        \State $\texttt{bf.ins(key,}$
+                \State $\hspace*{15mm} \texttt{[hash\textsubscript{1}..hash\textsubscript{bf.k}])}$
+        \State \textbf{break}
+      \Else
+        \State $tmp \gets$ $curr.plen$ most signif bits in $pref$
+        \State $key \gets \texttt{encode(tmp, curr.plen)}$
+        \State $\texttt{bf.ins(key, [hash\textsubscript{1}])}$\Comment{signal right}
+        \State $count_{hit} \gets count_{hit} + 1$
+        \State $hashes \gets \texttt{filter(}$\Comment{hash funcs}
+              \State $\hspace*{15mm} \texttt{bmp,}$\Comment{encode bmp}
+              \State $\hspace*{15mm} \texttt{hash\textsubscript{count\textsubscript{hit}},}$\Comment{start hash func}
+              \State $\hspace*{15mm} \texttt{n)}$\Comment{num bits}
+        \State $\texttt{bf.insert(key, hashes)}$
+        \State $curr \gets curr.right$
+      \EndIf
+    \EndWhile
+    \EndProcedure
+
+  \end{algorithmic}
+\end{algorithm}
+
+
+Algorithm~\ref{alg:guidedsearch} defaults to linear search when a bit that
+would be unset
+under the perfect hashing assumption is found set in the actual BF.
+The dead end scenario can ensue in the course of:
+
+\begin{enumerate}
+  \item the search being directed \emph{right}, where 
+    (in hindsight) it should have proceeded \emph{left};
+  \item the decoded best matching prefix length is incorrect -- either 
+    logically impossible (nonsensical prefix length, or prefix length longer than
+    or equal to $last_{hit}$) or failing the BF lookup on one of the 
+    remaining hash functions;
+  \item the case of false positive: The prefix is not found in
+    FIB.
+\end{enumerate}
+
+In any one of these cases, Algorithm~\ref{alg:guidedsearch} defaults to the linear lookup
+scheme, starting
+with the longest match to date ($last_{hit}$ in Algorithm~\ref{alg:guidedsearch} pseudocode).
+Given the number of prefixes to be stored in the BF, we can tune the BF 
+parameters (bit array size $m$, number of hash functions $k$) to provide
+an optimal balance between the size of the data structure in memory (i.e.,
+design the BF to fit in CPU cache), on the one hand, and the rate at which
+the guided search would default to linear search and the FIB table lookup 
+rate, on the other. The cost benefit analysis is a
+function of the size of L3 cache available, the penalty for off-chip memory 
+hits and misses, the computational cost per byte of hash, and the like --
+and can be established through grid search and tuned for the target 
+hardware (and traffic, if the details are available).
+
+\begin{algorithm}
+  \caption{Guided search for LMP}\label{alg:guidedsearch}
+  \begin{algorithmic}[1]
+
+    \Procedure{Lookup}{$bf, ip, fib, bst$}
+      \State $last_{hit} \gets -1$\Comment{last plen that yielded hit}
+      \State $count_{hit} \gets 0$\Comment{times branched right}
+      \State $curr \gets bst$\Comment{start at root}
+
+      \While{$curr \not= null$}\Comment{not leaf}
+        \State $tmp \gets$ $curr.plen$ most significant bits of IP
+        \State $key \gets \texttt{encode(tmp, curr.plen)}$
+        \State $res \gets \texttt{bf.contains(tmp, [hash\textsubscript{1}])}$
+        \If{$res = 1$}
+          \State $count_{hit} \gets count_{hit} + 1$
+          \State $last_{hit} \gets curr.plen$
+          \State $curr \gets curr.right$
+        \Else
+          \State $curr \gets curr.left$
+        \EndIf
+      \EndWhile\Comment{reached leaf}
+
+      \If{$last_{hit}=-1$}
+        \State \textbf{return} \textsc{pref\textsubscript{default}}\Comment{default route}
+      \EndIf
+
+      \State $tmp \gets last_{hit}$ most significant bits of IP
+      \State $key \gets \texttt{encode(tmp, last\textsubscript{hit})}$
+      \State $bmp \gets \texttt{bf.contains(}$\Comment{decode best match}
+              \State $\hspace*{25mm} \texttt{key,}$
+              \State $\hspace*{25mm} \texttt{[hash\textsubscript{count\textsubscript{hit}}..hash\textsubscript{count\textsubscript{hit}+n-1}],}$
+              \State $\hspace*{25mm} \texttt{decode=true)}$
+
+      \If{$bmp=2^n-1 \;|\; bmp < last_{hit}$}
+        \State $key \gets$ encode best match prefix, as usual
+        \State $res \gets \texttt{bf.contains(}$
+              \State $\hspace*{25mm} \texttt{key,}$
+              \State $\hspace*{25mm} \texttt{[hash\textsubscript{count\textsubscript{hit}+n}..hash\textsubscript{bf.k}])}$
+
+        \If{$res=1 \;\&\; key \in fib$}
+            \State \textbf{return} $bmp$
+        \Else
+            \State \textbf{return} \texttt{LinearSearch(}\Comment{defaulting}
+            \State $\hspace*{25mm} \texttt{bf, ip,}$
+            \State $\hspace*{25mm} \texttt{fib, last\textsubscript{hit}-1)}$
+        \EndIf
+      \EndIf
+    \EndProcedure
+
+  \end{algorithmic}
+\end{algorithm}
+
+The time
+complexity of Algorithm~\ref{alg:guidedsearch} is $\Omega(\log n)$, 
+where $n$ is the number of distinct prefix lengths in the BF. Each
+search will scan the full height of the binary search tree, stopping at
+a leaf, then jumping from the most recent \texttt{hash\textsubscript{1}} match
+to the \emph{best matching prefix}, occasionally defaulting to linear
+search. The number of defaults can in principle be controlled in the same
+way as the false positive rate can be tuned for the standard BF.
+In practice, the degree to which the default rate can be minimized is
+limited by the practical considerations of the available CPU cache size.
+
+\section{Experiments and Discussion}
+TBD...
+
+\begin{thebibliography}{9}
+
+
+\bibitem{Dharmapurikar}
+  S. Dharmapurikar, P. Krishnamurthy, D. Taylor,
+  \emph{Longest prefix matching using bloom filters},
+  IEEE/ACM Transactions on Networking,
+  vol.~14, no. 2, pp.~397--409,
+  2006.
+
+\bibitem{Waldvogel}
+  M. Waldvogel, G.Varghese, J. Turner, B. Plattner,
+  \emph{Scalable high-speed prefix matching},
+  ACM Trans. Comput. Syst.,
+  vol.~19, no. 4, pp.~440--482,
+  2001.
+
+
+
+\end{thebibliography}
+\bibliographystyle{IEEEtran}
+\end{document}

@@ -229,7 +229,7 @@ def _guided_lookup_helper(bf, root, ip, fib, maxx, minn, ix2len, protocol):
         pref_encoded = encode_ip_prefix_pair(masked, pref_hypothesis, protocol)
 
     # check remaining hash funcs
-    if (bmp_ix == (1<<ENCODING[protocol]) - 1 or bmp_ix < len(ix2len))\
+    if (bmp_ix == (1<<ENCODING[protocol]) - 1 or pref_hypothesis < preflen_hit[0])\
             and bf.contains(pref_encoded,
                             hashes = _choose_hash_funcs(preflen_hit[1] + ENCODING[protocol],
                                                         end=k))\
