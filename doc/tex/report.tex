@@ -21,10 +21,89 @@ TBD...
 \end{abstract}
 
 \section{Background}
-TBD...
+To set the context, consider the fundamental task of a network router.
+In order to match an incoming packet to an outgoing interface link,
+the router inspects the packet's header to obtain the destination address.
+It will then consult a forwarding (Forwarding Information Base) table 
+stored on the router.
+An address entry in such a table will contain, among other things,
+a variable length prefix (as in 129.12.30.0/20).
+In effect, the router will compare the destination IP
+against the known prefixes using the longest prefix match rule.
+The forwarding table itself may be occasionally updated with new prefixes
+received via BGP route advertisement \cite{Kurose:Networking}.
+
+It would appear that a standard hash table or a binary search tree could
+satisfy the requirements of a data structure that permits the 
+\textit{look-up} and \textit{update} operations. The difficulty with 
+adapting the well-known 
+datastructures for Internet routing stems mainly from the sheer throughput
+demand imposed by today's line speed and the FIB table size.
+This can be easily shown on the example of a hypothetical 50Gbps router and
+an Ethernet frame of 84 bytes for a minimum sized packet. The bit per second 
+wire line speed can be framed in terms of packets per second. Specifically,
+for this simplified scenario, we can expect to process 75Mpps. Depending on
+the algorithm that we pick, this may require at least 75 million lookups 
+per second (or an order of magnitude more). For a general purpose CPU clock
+speed of (for the sake of example) 4 GHz, this equates to approximately 
+50 CPU cycles per packet. If the router cannot keep up with the speed of
+arriving packets, it will drop packets.
+
+How much work can be done in 50 CPU cycles? As a very rough approximation,
+consider that conventional hashing algorithms require about 10 cycles 
+per byte of hash (40 cycles to compute a 32 bit hash). Memory latency
+presents a particular challenge. The access times range between 4-50 cycles
+for L1 and L3 CPU caches, respectively. The penalty for misses can easily 
+double the time requirements. Main memory access will require several hundred 
+cycles.
+
+Clearly, this hypothetical scenario is an oversimplication. The forwarding
+task is only one among many processing steps that a router performs on each
+packet, contemporary CPUs will likely have multiple cores, router line
+speeds may be in the single digits or in the hundreds of Gbps, there will 
+be a distribution of packet sizes (my estimate errs on the conservative
+side), leaf node routers may benefit from caching previously seen IP
+addresses etc. Still, the above generalization gives us a ballpark number 
+to quickly determine if a particular datastructure is fit for the task.
+
+In view of these numbers, it is not at all surprising that the lookup has 
+been traditionally performed in hardware, using dedicated TCAM and SRAM 
+circuits. There are multiple considerations that make software 
+implementations superior to ASIC hardware based ones. The cost per 
+transistor, power requirements, and monopoly effects, in particular, 
+drive up the cost. The inability to patch hardware makes security updates
+unfeasible. There has been a renewed push recently to develop 
+programmable routers that, on the one hand, can accommodate the data 
+processing speeds expected of today's networks, and on the other, offer 
+the option to implement and continuously update various parts of the 
+network stack in software rather than hardware.
+
 
 \section{Related Work}
-TBD...
+Classical algorithms developed up to about 2007 have been surveyed in
+Ruiz-Sanchez et al.\cite{Sanchez:Survey} and 
+Varghese\cite{Varghese:Algorithmics}. The data structures include trie,
+tree, and hash table variants. 
+
+Of particular relevance is the binary search on prefix lengths 
+proposed in Waldvogel et al.\cite{Waldvogel:Scalable}. 
+Waldvogel et al. propose a very elaborate
+hash table of binary search trees with logarithmic time complexity. Most 
+of the refinements require comparatively large databases, an order of 
+magnitude more memory than what can fit into third level
+cache, and are therefore only practical for hardware implementations. We
+believe that the core ideas of leveraging the binary search on prefixes and 
+using memoization to avoid backtracking when the search fails can be
+adapted to the more compact data structures.
+
+Dharmapurikar et al.\cite{Dharmapurikar:Bloom} describe a longest prefix
+matching algorithm utilizing a probabilistic set membership check with
+Bloom filters. A Bloom filter is associated with each prefix length. The
+destination adress is masked and matched against each of the Bloom filters,
+yielding a list of one or more prefix matches. The list is then checked
+against an off-chip conventional hash table, starting with the longest 
+prefix match. Because of the arbitrarily small false positive rate, 
+a single lookup in high-latency main memory is sufficient in practice.
 
 \section{Solution}
 
@@ -32,11 +111,11 @@ TBD...
 
 We have identified two opportunities for improvement in the context of
 the Bloom filter-based solutions to the longest prefix matching problem.
-The Bloom filter (BF) data structure was originally used by Dharmapurikar et al.
-\cite{Dharmapurikar}
-for parallel lookup implemented in hardware. By contrast, the software
+The Bloom filter (BF) data structure was originally used by 
+Dharmapurikar et al. \cite{Dharmapurikar}
+for parallel look up implemented in hardware. By contrast, the software
 implementations on conventional hardware pay a hefty penalty -- in computation
-cost and code complexity -- to parallelize the lookup. The default solution
+cost and code complexity -- to parallelize the look up. The default solution
 has been a linear search (see Algorithm~\ref{alg:linearsearch}). The time
 complexity of Algorithm~\ref{alg:linearsearch} is $\mathcal{O}(n)$, where $n$
 is the number of distinct prefix lengths in the BF. We
@@ -68,16 +147,16 @@ propose to improve on the linear search for Bloom filter in this paper.
 Second, any scheme that utilizes a probabilistic data structure, such as
 the Bloom filter, to identify candidate(s) for the \emph{longest matching
 prefix} (LMP) would generally need to look up the candidate(s)
-in a forwarding table -- as the definitive membership
+in a forwarding table that serves as the definitive membership
 test and the store of the next hop information. Current solutions typically
 store this information in an off-chip hash table. This operation is therefore
 a bottleneck of the probabilistic filter-based schemes. While we have
 not yet implemented or tested the proposed guided search data structure
-specifically for FIB storage, we suspect that the method we propose may be broadly
+specifically for FIB storage, we conjecture that the method we propose may be broadly
 applicable to any key-value store application that
 
 \begin{enumerate}[label=(\alph*)]
-\item is defined as a many-to-few kind of mapping, and
+\item is defined as a many-to-few kind of mapping over totally ordered keys, and
 \item tolerates (i.e. self-corrects for) a certain probability of error.
 \end{enumerate}
 
@@ -122,7 +201,7 @@ structure amenable to such a guided search. The underlying idea is to
 pre-compute in advance the traversal path for an IP that could possibly match a given
 prefix -- at the time of inserting the prefix into the BF.
 Algorithm~\ref{alg:guidedsearch} suggests
-a procedure to \emph{lookup} an IP in a data structure built by
+a procedure to \emph{look up} an IP in a data structure built by
 Algorithm~\ref{alg:build}. The
 algorithms assign specific meaning to the \emph{first} hashing function
 to direct our search left or right in a binary search tree. In addition, we
@@ -132,17 +211,17 @@ will index the prefix length in a compact array of the prefix lengths
 contained in the router's FIB table (e.g., $0 \rightarrow 0$, $1 \rightarrow 8$, etc.
 for the IPv4 table used in our experiments).
 
-Both the \emph{build} and the \emph{lookup} procedures assume an (optimal)
-binary search tree to guide any search. Such an optimal tree could be
+Both the \emph{build} and the \emph{look up} procedures assume an (optimal)
+binary search tree to guide the search. Such an optimal tree could be
 constructed for a given router if the historic traffic data and its 
 correlation with the fraction of space covered by each prefix length
 were known. In the absence of such information, we can conservatively
 assume random traffic and a balanced binary search tree (as in the
 classic binary search algorithm).
 
-The \emph{build} and the \emph{lookup} procedures are mutually recursive
-in that the \emph{build} invokes the \emph{lookup} to identify the
-best matching (shorter) prefix in a BF constructed to date for a (longer) prefix 
+The \emph{build} and the \emph{look up} procedures are mutually recursive
+in that the \emph{build} invokes the \emph{look up} to identify the
+best matching (shorter) prefix in a BF constructed to date for the (longer) prefix 
 about to be inserted. Therefore, we will first sort the prefixes, before inserting them 
 into the BF in the ascending order.
 
@@ -150,11 +229,12 @@ into the BF in the ascending order.
   \caption{Build a BF to enable guided search for LMP}\label{alg:build}
   \begin{algorithmic}[1]
 
-    \Procedure{Insert}{$bf, pref, bst$}
+    \Procedure{Insert}{$bf, pref, fib, bst$}
 
     \State $bmp \gets \texttt{Lookup(}$\Comment{best match prefix}
         \State $\hspace*{20mm} \texttt{bf,}$
-        \State $\hspace*{20mm} \texttt{encode(pref, pref.len-1),}$
+        \State $\hspace*{20mm} \texttt{pref,}$
+        \State $\hspace*{20mm} \texttt{fib,}$
         \State $\hspace*{20mm} \texttt{bst)}$
     \State $curr \gets bst$\Comment{start at root}
     \State $count_{hit} \gets 0$\Comment{times branched right}
@@ -197,20 +277,20 @@ The dead end scenario can ensue in the course of:
     (in hindsight) it should have proceeded \emph{left};
   \item the decoded best matching prefix length is incorrect -- either 
     logically impossible (nonsensical prefix length, or prefix length longer than
-    or equal to $last_{hit}$) or failing the BF lookup on one of the 
+    or equal to $last_{hit}$) or failing the BF look up on one of the 
     remaining hash functions;
   \item the case of false positive: The prefix is not found in
     FIB.
 \end{enumerate}
 
-In any one of these cases, Algorithm~\ref{alg:guidedsearch} defaults to the linear lookup
+In any one of these cases, Algorithm~\ref{alg:guidedsearch} defaults to the linear look up
 scheme, starting
 with the longest match to date ($last_{hit}$ in Algorithm~\ref{alg:guidedsearch} pseudocode).
 Given the number of prefixes to be stored in the BF, we can tune the BF 
 parameters (bit array size $m$, number of hash functions $k$) to provide
 an optimal balance between the size of the data structure in memory (i.e.,
 design the BF to fit in CPU cache), on the one hand, and the rate at which
-the guided search would default to linear search and the FIB table lookup 
+the guided search would default to linear search and the FIB table look up 
 rate, on the other. The cost benefit analysis is a
 function of the size of L3 cache available, the penalty for off-chip memory 
 hits and misses, the computational cost per byte of hash, and the like --
@@ -274,8 +354,8 @@ complexity of Algorithm~\ref{alg:guidedsearch} is $\Omega(\log n)$,
 where $n$ is the number of distinct prefix lengths in the BF. Each
 search will scan the full height of the binary search tree, stopping at
 a leaf, then jumping from the most recent \texttt{hash\textsubscript{1}} match
-to the \emph{best matching prefix}, occasionally defaulting to linear
-search. The number of defaults can in principle be controlled in the same
+to the \emph{best matching prefix}, occasionally defaulting to a linear
+search over the lower prefix lengths. The number of defaults can in principle be controlled in the same
 way as the false positive rate can be tuned for the standard BF.
 In practice, the degree to which the default rate can be minimized is
 limited by the practical considerations of the available CPU cache size.
@@ -283,25 +363,7 @@ limited by the practical considerations of the available CPU cache size.
 \section{Experiments and Discussion}
 TBD...
 
-\begin{thebibliography}{9}
 
-
-\bibitem{Dharmapurikar}
-  S. Dharmapurikar, P. Krishnamurthy, D. Taylor,
-  \emph{Longest prefix matching using bloom filters},
-  IEEE/ACM Transactions on Networking,
-  vol.~14, no. 2, pp.~397--409,
-  2006.
-
-\bibitem{Waldvogel}
-  M. Waldvogel, G.Varghese, J. Turner, B. Plattner,
-  \emph{Scalable high-speed prefix matching},
-  ACM Trans. Comput. Syst.,
-  vol.~19, no. 4, pp.~440--482,
-  2001.
-
-
-
-\end{thebibliography}
 \bibliographystyle{IEEEtran}
+\bibliography{bibliography}
 \end{document}
