@@ -2,6 +2,6 @@ test_bitarray_size(): vary bitarray size, keeping k constant, for linear, invoca
 Linear search: lookup/hashing stats
 Percent full
 Count of invocations
-99.90653442262034;50.129269321807335;6.720571192659971;0.6930031117453117;0.06952903735635117
-(394.72, 19.91, 19.55, 0.00);(52.00, 19.91, 0.67, 0.00);(34.00, 19.91, 0.67, 0.00);(32.76, 19.91, 0.67, 0.00);(32.63, 19.91, 0.67, 0.00)
-BloomFilter(fpp=-1.00000000, n=749362, k=20, ba=(malloc=0.26MB, length=2154804b, %full=99.9));BloomFilter(fpp=-1.00000000, n=749362, k=20, ba=(malloc=2.57MB, length=21548036b, %full=50.1));BloomFilter(fpp=-1.00000000, n=749362, k=20, ba=(malloc=25.69MB, length=215480360b, %full=6.7));BloomFilter(fpp=-1.00000000, n=749362, k=20, ba=(malloc=256.87MB, length=2154803600b, %full=0.7));BloomFilter(fpp=-1.00000000, n=749362, k=20, ba=(malloc=2568.73MB, length=21548036000b, %full=0.1))
+96.91377962914493;29.387332562466483;3.419311625430735;0.34711390866434416;0.034770449613134115
+(174.51, 19.92, 14.69, 0.00);(33.93, 19.92, 0.66, 0.00);(26.57, 19.92, 0.66, 0.00);(25.97, 19.92, 0.66, 0.00);(25.91, 19.92, 0.66, 0.00)
+BloomFilter(fpp=-1.00000000, n=749362, k=10, ba=(malloc=0.26MB, length=2154804b, %full=96.9));BloomFilter(fpp=-1.00000000, n=749362, k=10, ba=(malloc=2.57MB, length=21548036b, %full=29.4));BloomFilter(fpp=-1.00000000, n=749362, k=10, ba=(malloc=25.69MB, length=215480360b, %full=3.4));BloomFilter(fpp=-1.00000000, n=749362, k=10, ba=(malloc=256.87MB, length=2154803600b, %full=0.3));BloomFilter(fpp=-1.00000000, n=749362, k=10, ba=(malloc=2568.73MB, length=21548036000b, %full=0.0))

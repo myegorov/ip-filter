@@ -2,6 +2,6 @@ test_traffic_patterns(): using 'optimal' params for linear, invocations of funcs
 Linear search: lookup/hashing stats
 Function
 Count of invocations
-bitarray lookup, hash(), FIB lookup, defaults
-52.87, 17.38, 1.00, 0.00
-linear BF: BloomFilter(fpp=0.00000100, n=749362, k=20, ba=(malloc=2.57MB, length=21548036b, %full=50.1))
+bitarray lookup, hashing, FIB lookup, defaults
+48.04, 17.40, 1.00, 0.00
+linear BF: BloomFilter(fpp=0.00010000, n=749362, k=14, ba=(malloc=1.71MB, length=14365358b, %full=51.8))

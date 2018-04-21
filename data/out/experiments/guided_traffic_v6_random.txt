@@ -2,6 +2,6 @@ test_traffic_patterns(): using 'hand tuned' params for guided, invocations of fu
 Guided search: stats per packet
 Function
 Count of invocations
-bitarray lookup, hash(), FIB lookup, defaults
-6.52, 6.07, 0.03, 0.00
-guided BF: BloomFilter(fpp=-1.00000000, n=53913, k=20, ba=(malloc=25.69MB, length=215480360b, %full=0.5))
+bitarray lookup, hashing, FIB lookup, defaults
+7.71, 6.73, 0.12, 0.02
+guided BF: BloomFilter(fpp=-1.00000000, n=53913, k=10, ba=(malloc=2.57MB, length=21548036b, %full=2.6))
