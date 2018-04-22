@@ -54,11 +54,15 @@ from plot import plot_vbar, plot_scatter
 THROTTLE = 100000 # test with representative but limited amount of traffic
 
 # # "optimal" guided Bloom settings, TODO: tune
-K = 10 # does well
-BITARR_SIZE=21548036 # also fares well, esp. for IPv6 (obviously b/c of smaller prefix table), and is of manageable size!
+# K = 10 # does well
+# BITARR_SIZE=21548036 # also fares well, esp. for IPv6 (obviously b/c of smaller prefix table), and is of manageable size!
 # K = 20
 # BITARR_SIZE=215480360
-FPP = 1e-4
+K = 10
+K6 = 10 # TODO: try 14-15 for IPv6
+BITARR_SIZE=86192144
+# FPP = 1e-4
+FPP = 1e-3
 
 def _common_prep(protocol='v4', traffic_pattern=RANDOM_TRAFFIC):
     fib = compile_fib_table(protocol=protocol)
@@ -88,7 +92,7 @@ def _lookup_wrapper(bf, traffic, fib, pref_stats, protocol, bst=None, typ='linea
 
 
 
-def test_traffic_patterns(fpp_linear=FPP, num_bits_guided=BITARR_SIZE, k_guided=K):
+def test_traffic_patterns(fpp_linear=FPP, num_bits_guided=BITARR_SIZE, k4_guided=K, k6_guided=K6):
     test_matrix = {
         # using weigh_equally throughout for best results
         'v4': [(RANDOM_TRAFFIC, weigh_equally, 'random.txt'),
@@ -127,10 +131,11 @@ def test_traffic_patterns(fpp_linear=FPP, num_bits_guided=BITARR_SIZE, k_guided=
             _lookup_wrapper(bf_linear, traffic, fib, pref_stats, protocol, bst=None, typ='linear')
 
             # record the ending ncalls for each function of interest
-            ncontains = (bf_linear._register.ncalls - ncontains)/THROTTLE
-            nfnv = (hash_fnv.ncalls - nfnv)/THROTTLE
-            nfib = (fib.__contains__.ncalls - nfib)/THROTTLE
-            ndefault = (ipfilter._default_to_linear_search.ncalls - ndefault)/THROTTLE
+            throttle = min(THROTTLE, len(traffic)) # for the case of prefix traffic
+            ncontains = (bf_linear._register.ncalls - ncontains)/throttle
+            nfnv = (hash_fnv.ncalls - nfnv)/throttle
+            nfib = (fib.__contains__.ncalls - nfib)/throttle
+            ndefault = (ipfilter._default_to_linear_search.ncalls - ndefault)/throttle
 
             # record experiment to file in EXPERIMENTS: header, plot title, xaxis, yaxis, xs, ys, misc info
             with open(os.path.join(EXPERIMENTS, 
@@ -150,8 +155,9 @@ def test_traffic_patterns(fpp_linear=FPP, num_bits_guided=BITARR_SIZE, k_guided=
 
             ## GUIDED
             # use hand tuned params
+            kg = k6_guided if protocol=='v6' else k4_guided
             bf_guided, bst, count_bmp = ipfilter.build_bloom_filter(
-                protocol=protocol, lamda=lamda, fpp=None, k=k_guided,
+                protocol=protocol, lamda=lamda, fpp=None, k=kg,
                 num_bits=num_bits_guided, fib=fib)
 
             # record starting ncalls for each function of interest
@@ -165,10 +171,11 @@ def test_traffic_patterns(fpp_linear=FPP, num_bits_guided=BITARR_SIZE, k_guided=
                             bst=bst, typ='guided')
 
             # record the ending ncalls for each function of interest
-            ncontains = (bf_guided._register.ncalls - ncontains)/THROTTLE
-            nfnv = (hash_fnv.ncalls - nfnv)/THROTTLE
-            nfib = (fib.__contains__.ncalls - nfib)/THROTTLE
-            ndefault = (ipfilter._default_to_linear_search.ncalls - ndefault)/THROTTLE
+            throttle = min(THROTTLE, len(traffic)) # for the case of prefix traffic
+            ncontains = (bf_guided._register.ncalls - ncontains)/throttle
+            nfnv = (hash_fnv.ncalls - nfnv)/throttle
+            nfib = (fib.__contains__.ncalls - nfib)/throttle
+            ndefault = (ipfilter._default_to_linear_search.ncalls - ndefault)/throttle
 
             # record experiment to file in EXPERIMENTS: header, plot title, xaxis, yaxis, xs, ys, misc info
             with open(os.path.join(EXPERIMENTS, 
@@ -198,9 +205,10 @@ def test_bitarray_size(fib, traffic, pref_stats):
     ''' vary bitarray size (or equivalently by % bits set)
     '''
     print('\n\ntest_bitarray_size()\n\n')
+    multiples = (-2,3,1)
     test_matrix = {
-        'linear': [round(BITARR_SIZE * 10**factor) for factor in range(-1,4,1)],
-        'guided': [round(BITARR_SIZE * 10**factor) for factor in range(-1,4,1)]
+        'linear': [round(BITARR_SIZE * 10**factor) for factor in range(*multiples)],
+        'guided': [round(BITARR_SIZE * 10**factor) for factor in range(*multiples)]
     }
     protocol='v4'
     res = {}
