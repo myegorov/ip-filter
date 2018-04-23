@@ -2,6 +2,8 @@
 *.log
 *.out
 *.toc
+*.bbl
+*.blg
 
 *.dvi
 

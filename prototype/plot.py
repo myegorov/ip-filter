@@ -7,7 +7,7 @@ for d in [DATADIR]:
     sys.path.append(d)
 
 
-def plot_vbar(x, y, outdir=EXPERIMENTS, outfile='stats.png', title='Count vs. Measure',
+def plot_vbar(x, y, outdir=EXPERIMENTS, outfile='stats.png', title='Count of function invocations vs. Measure',
               y_logscale=True, xlabel='metric', ylabel='count'):
     ''' Plot bar graph of x vs y.
     '''
@@ -18,18 +18,19 @@ def plot_vbar(x, y, outdir=EXPERIMENTS, outfile='stats.png', title='Count vs. Me
     #     axs[1].set_yscale('log')
 
     collabel = ['method'] + x
-    y[0].insert(0, 'linear')
-    y[1].insert(0, 'guided')
+    tab_lines = [['%.1f' %num for num in y[i]] for i in range(2)]
+    tab_lines[0].insert(0, 'linear')
+    tab_lines[1].insert(0, 'guided')
 
     axs[0].axis('tight')
     axs[0].axis('off')
-    the_table = axs[0].table(cellText=y,colLabels=collabel,loc='center')
+    the_table = axs[0].table(cellText=tab_lines,colLabels=collabel,loc='center')
 
     ind = np.arange(len(x))
     width = 0.35
 
-    rects1 = axs[1].bar(ind, y[0][1:], width, color='r')
-    rects2 = axs[1].bar(ind+width, y[1][1:], width, color='b')
+    rects1 = axs[1].bar(ind, y[0], width, color='r')
+    rects2 = axs[1].bar(ind+width, y[1], width, color='b')
 
     axs[1].set_ylabel(ylabel)
     axs[1].set_xlabel(xlabel)
@@ -93,9 +94,9 @@ def plot_scatter(seqs, res, outfile, title, xlabel, ylabel,
                 bbox_inches='tight', dpi=300)
 
 if __name__ == "__main__":
-    seqs = ['bit lookup', 'hash()', 'FIB lookup', '%% traffic defaulting']
+    seqs = ['bit lookup', 'hashing', 'FIB lookup', '%% traffic defaulting']
     ofile = 'bitarraySize_random.png'
-    title = 'Count by metric: bitarray size'
+    title = 'Count of function invocations by metric type: bitarray size'
     xlabel = '%% bitarray full'
     ylabel = 'count'
     res = {'linear': {'percent_full': [0.05, 0.1, 0.5, 0.9], 'ncalls': [[1,2,3,4], [10,20,30,40], [100,200,300,400], [1000,2000,3000,4000]], 'bf': ['a','b','c','d']},
