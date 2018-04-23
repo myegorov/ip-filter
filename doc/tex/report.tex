@@ -6,6 +6,7 @@
 \usepackage{booktabs}
 \usepackage{amssymb}
 \usepackage{multirow}
+\usepackage{afterpage}
 \hyphenation{op-tical net-works semi-conduc-tor}
 
 
@@ -594,7 +595,12 @@ length (here we reuse prefixes as the traffic). It will be seen that for any
 traffic pattern the guided scheme outperforms the linear search
 by an order of magnitude.
 
-\begin{figure}[h]
+\bibliographystyle{IEEEtran}
+\bibliography{bibliography}
+
+
+\clearpage
+\begin{figure}[p]
 \centering
 \includegraphics[height=1.5in]{../img/ipv6_balanced_tree.png}
   \caption{Binary search tree used for the IPv6 prefix search}
@@ -602,16 +608,14 @@ by an order of magnitude.
 \end{figure}
 
 
-\begin{figure}[h]
+\begin{figure}[p]
 \centering
 \includegraphics[height=2.5in]{../img/ipv6_traffic_comparison.png}
 \caption{IPv6 search performance: random traffic that always defaults to 0-prefix length vs. traffic correlated with the share of each prefix length (no defaults);
-  guided BF: $n=53913$ elements, $k=14$ hash funcs, $size=2.05$MB, $length=17238428$ bits, $4.4$\% full}
+  guided BF: $n=53913$ elements, $k=14$ hash funcs, $size=2.05$MB, $length=17238428$ bits, $4.4$\% full;
+  linear BF: $fpp=10^{-3}$, $n=53913$ elements, $k=10$, $size=0.09$MB, $length=775139$ bits, $50.1$\% full}
 \label{fig:IPv6-by-traffic}
 \end{figure}
-
-\newpage
-\bibliographystyle{IEEEtran}
-\bibliography{bibliography}
+\clearpage
 
 \end{document}
