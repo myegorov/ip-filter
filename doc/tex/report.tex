@@ -5,6 +5,7 @@
 \usepackage{fixltx2e}
 \usepackage{booktabs}
 \usepackage{amssymb}
+\usepackage{multirow}
 \hyphenation{op-tical net-works semi-conduc-tor}
 
 
@@ -18,7 +19,11 @@ Rochester Institute of Technology, NY\\ Email: \texttt{mey5634@rit.edu}
 \maketitle
 
 \begin{abstract}
-TBD...
+Longest prefix matching has long been the bottleneck of the Bloom 
+filter-based solutions for packet forwarding implemented in software. We propose
+a search algorithm that allows for a compact representation of the FIB table
+in cache on general purpose CPUs with an average performance target
+of $\mathcal{O}(\log n)$ for $n$-bit IP addresses.
 
 \end{abstract}
 
@@ -207,7 +212,8 @@ a procedure to \emph{look up} an IP in a data structure built by
 Algorithm~\ref{alg:build}. The
 algorithms assign specific meaning to the \emph{first} hashing function
 to direct our search left or right in a binary search tree. In addition, we
-reserve $n$ hashing functions ($n=5$ for IPv4, $n=6$ for IPv6) to encode
+reserve $n$ hashing functions ($n\in\{5,7\}$ for IPv4 and IPv6 tables
+in our experiments) to encode
 the best matching prefix as a bit sequence. The $n$ bits, when decoded,
 will index the prefix length in a compact array of the prefix lengths
 contained in the router's FIB table (e.g., $0 \rightarrow 0$, $1 \rightarrow 8$, etc.
@@ -455,7 +461,7 @@ balanced tree are equally likely to match any one IP.
 
 \begin{figure}[h]
 \centering
-\includegraphics[height=2.0in]{../img/trees_v4.png}
+\includegraphics[height=1.9in]{../img/trees_v4.png}
   \caption{Balanced BST (used in experiments) vs. BST optimized exclusively for address share (not used), both based on the Route-Views.Oregon-ix.net IPv4 table}
 \label{fig:trees-v4}
 \end{figure}
@@ -492,10 +498,120 @@ by prefix frequency     & \multicolumn{2}{c}{\checkmark}    & \multicolumn{2}{c}
 
 \subsection{Discussion}
 
-TBD...
+We summarize the results of the experiments with different IPv4 traffic
+types in Table~\ref{tab:traffic}. In general, the \emph{guided search} 
+requires about half the number of accesses on a per packet basis compared 
+to \emph{linear search}.
+
+\begin{table}[]
+\centering
+\caption{IPv4 linear vs. guided search performance by traffic type; guided BF: $n=749362$ elements, $k=10$ hash funcs, $size=2.57$MB, $length=21548036$ bits, $33.3$\% full;
+linear BF: $fpp=10^{-4}$, $n=749362$ elements, $k=14$ hash funcs, $size=1.71$MB, $length=14365358$ bits, $51.8$\% full}
+\label{tab:traffic}
+
+\begin{tabular}{llccl}
+\hline
+\textbf{traffic}                         & \textbf{metric (per packet)} & \textbf{linear}          & \multicolumn{2}{l}{\textbf{guided}} \\ \hline
+\multirow{2}{*}{random}                  & bit lookup      & 49.3                     & \multicolumn{2}{c}{22.1}            \\ %\cline{2-2}
+                                         & hashing         & 20.0                     & \multicolumn{2}{c}{11.2}            \\ \hline
+\multirow{2}{*}{by prefix address space} & bit lookup      & 48.0                     & \multicolumn{2}{c}{22.3}            \\ %\cline{2-2}
+                                         & hashing         & 17.4                     & \multicolumn{2}{c}{10.3}            \\ \hline
+\multirow{2}{*}{by prefix frequency}     & bit lookup      & 33.3                     & \multicolumn{2}{c}{17.7}            \\ %\cline{2-5} 
+                                         & hashing         & 10.3                     & \multicolumn{2}{c}{8.6}             \\ \hline
+\end{tabular}
+\end{table}
+
+Search performance vs. utilization ratio (\% full) is documented in
+Table~\ref{tab:utilization}. From Figure~\ref{fig:utilization} it can be
+seen, that the linear vs. guided search relative performance levels off 
+when the bitarray is approximately 10\% full. 
+For a table of approx. 750,000 entries,
+10\% full guided BF requires 10.3MB and can therefore fit in
+L3 cache on today's general purpose CPUs. The performance for a
+compact 2.57MB guided filter is still an improvement on linear search
+results, even though the search
+defaults to linear 68\% of the time. The effect of defaults is
+reflected in the increased number of bit lookups and hash computations.
+
+\begin{table}[]
+\centering
+\caption{IPv4 guided search performance by utilization ratio (random traffic); guided BF: $n=749362$ elements, $k=10$ hash funcs}
+\label{tab:utilization}
+
+\begin{tabular}{llcl}
+\hline
+\textbf{\% bit vector full (size)}              & \textbf{metric} & \multicolumn{2}{l}{\textbf{count per packet}} \\ \hline
+\multirow{4}{*}{33.3\% full (2.6MB)} & bit lookup      & \multicolumn{2}{c}{22.1}                           \\
+                                     & hashing         & \multicolumn{2}{c}{11.2}                           \\
+                                     & FIB lookup      & \multicolumn{2}{c}{0.7}                            \\
+                                     & default rate    & \multicolumn{2}{c}{68\%}                           \\ \hline
+\multirow{4}{*}{9.6\% full (10.3MB)} & bit lookup      & \multicolumn{2}{c}{14.0}                           \\
+                                     & hashing         & \multicolumn{2}{c}{8.0}                            \\
+                                     & FIB lookup      & \multicolumn{2}{c}{0.7}                            \\
+                                     & default rate    & \multicolumn{2}{c}{30\%}                           \\ \hline
+\multirow{4}{*}{4.0\% full (25.7MB)} & bit lookup      & \multicolumn{2}{c}{12.5}                           \\
+                                     & hashing         & \multicolumn{2}{c}{7.4}                            \\
+                                     & FIB lookup      & \multicolumn{2}{c}{0.7}                            \\
+                                     & default rate    & \multicolumn{2}{c}{22\%}                           \\ \hline
+\end{tabular}
+\end{table}
 
 
+\begin{figure}[h]
+\centering
+\includegraphics[height=2.2in]{../img/bitarraySize_v4_random.png}
+  \caption{IPv4 search performance for guided vs. linear search; $n=749362$ elements, $k=10$ hash funcs}
+\label{fig:utilization}
+\end{figure}
 
+The number of bit lookups asymptotically approaches approximately 8. 
+For the IPv4 table covering
+approximately 67\% of the address space, 33\% of lookups will
+require 4 lookups to arrive at the default route, while the remaining
+67\% of lookups will
+traverse the full height of the balanced tree (5 lookups), in addition to
+decoding the 5-bit \emph{best matching prefix} sequence for a total of
+10 lookups. Similarly, assuming the bit vector is sparse enough to never
+default to linear search, there would be about 5.3 hash lookups in the limit.
+Four hash computations are required to yield the default route for
+33\% of lookups and 6 hash computations are required
+for the remaining 67\% of lookups: 5 hashes to traverse the height of the 
+tree, in addition to a single hash computation to decode the 5-bit sequence).
+This calculation also illustrates, why $k=10$ hash functions were chosen
+for the experiments.
+
+Last but not least, the proposed search algorithm is particularly effective
+for the IPv6 address space. This is to be expected with the 128-bit IP
+addresses that require only six bitarray lookups to confirm the default
+route with the guided search scheme (Figure~\ref{fig:IPv6-tree}).
+
+Figure~\ref{fig:IPv6-by-traffic} compares the performance for two traffic 
+patterns. At one extreme, there is the default-only
+traffic that is optimally suited for the guided search scheme. At the other
+extreme, there is the case of no-default traffic directly correlated with 
+the share of each prefix
+length (here we reuse prefixes as the traffic). It will be seen that for any
+traffic pattern the guided scheme outperforms the linear search
+by an order of magnitude.
+
+\begin{figure}[h]
+\centering
+\includegraphics[height=1.5in]{../img/ipv6_balanced_tree.png}
+  \caption{Binary search tree used for the IPv6 prefix search}
+\label{fig:IPv6-tree}
+\end{figure}
+
+
+\begin{figure}[h]
+\centering
+\includegraphics[height=2.5in]{../img/ipv6_traffic_comparison.png}
+\caption{IPv6 search performance: random traffic that always defaults to 0-prefix length vs. traffic correlated with the share of each prefix length (no defaults);
+  guided BF: $n=53913$ elements, $k=14$ hash funcs, $size=2.05$MB, $length=17238428$ bits, $4.4$\% full}
+\label{fig:IPv6-by-traffic}
+\end{figure}
+
+\newpage
 \bibliographystyle{IEEEtran}
 \bibliography{bibliography}
+
 \end{document}

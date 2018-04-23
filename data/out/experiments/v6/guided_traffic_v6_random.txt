@@ -3,5 +3,5 @@ Guided search: stats per packet
 Function
 Count of invocations
 bitarray lookup, hashing, FIB lookup, defaults
-48.25, 33.36, 1.00, 0.91
-guided BF: BloomFilter(fpp=-1.00000000, n=53913, k=10, ba=(malloc=2.57MB, length=21548036b, %full=2.6))
+10.75, 8.01, 0.20, 0.06
+guided BF: BloomFilter(fpp=-1.00000000, n=53913, k=14, ba=(malloc=2.05MB, length=17238428b, %full=4.4))

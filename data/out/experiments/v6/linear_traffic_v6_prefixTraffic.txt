@@ -3,5 +3,5 @@ Linear search: lookup/hashing stats
 Function
 Count of invocations
 bitarray lookup, hashing, FIB lookup, defaults
-187.07, 84.29, 1.01, 0.00
-linear BF: BloomFilter(fpp=0.00010000, n=53913, k=14, ba=(malloc=0.12MB, length=1033519b, %full=51.9))
+176.87, 84.29, 1.09, 0.00
+linear BF: BloomFilter(fpp=0.00100000, n=53913, k=10, ba=(malloc=0.09MB, length=775139b, %full=50.1))

@@ -23,7 +23,7 @@ from obst import *
 from utils import encode_ip_prefix_pair, load_prefixes, prefix_stats
 from profiler import count_invocations
 
-ENCODING={'v4':5,'v6':6} # min num bits to encode prefix length
+ENCODING={'v4':5,'v6':7} # min num bits to encode prefix length
 NUMBITS={'v4':32,'v6':128}
 
 FPP = 1e-6 # false positive probability setting for Bloom filter

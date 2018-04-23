@@ -53,16 +53,16 @@ from plot import plot_vbar, plot_scatter
 
 THROTTLE = 100000 # test with representative but limited amount of traffic
 
-# # "optimal" guided Bloom settings, TODO: tune
+# "optimal" guided Bloom settings
 # K = 10 # does well
-# BITARR_SIZE=21548036 # also fares well, esp. for IPv6 (obviously b/c of smaller prefix table), and is of manageable size!
-# K = 20
+# BITARR_SIZE=21548036 # also fares well
 # BITARR_SIZE=215480360
 K = 10
-K6 = 10 # TODO: try 14-15 for IPv6
+K6 = 14
 BITARR_SIZE=86192144
-# FPP = 1e-4
+
 FPP = 1e-3
+# FPP = 1e-4
 
 def _common_prep(protocol='v4', traffic_pattern=RANDOM_TRAFFIC):
     fib = compile_fib_table(protocol=protocol)
@@ -93,6 +93,8 @@ def _lookup_wrapper(bf, traffic, fib, pref_stats, protocol, bst=None, typ='linea
 
 
 def test_traffic_patterns(fpp_linear=FPP, num_bits_guided=BITARR_SIZE, k4_guided=K, k6_guided=K6):
+
+
     test_matrix = {
         # using weigh_equally throughout for best results
         'v4': [(RANDOM_TRAFFIC, weigh_equally, 'random.txt'),
