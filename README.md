@@ -19,10 +19,13 @@ For up-to-date documentation, see `./doc/tex/report.pdf`
 
 ## Quick Start
 
+Requires Python 3.
+
 To set up the project tree, download BGP tables, synthesize traffic for 
 experiments, and run experiments profiling the relative performance of
 the traditional _linear_ search against the _guided_ search scheme:
 
 ```shell
+pip3 install -r requirements.txt
 ./setup.py
 ```
