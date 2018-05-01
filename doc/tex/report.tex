@@ -7,11 +7,12 @@
 \usepackage{amssymb}
 \usepackage{multirow}
 \usepackage{afterpage}
+\usepackage{bm}
 \hyphenation{op-tical net-works semi-conduc-tor}
 
 
 \begin{document}
-\title{Cache-aware data structures for packet forwarding tables on general purpose CPUs}
+\title{An Algorithm for an Approximate Membership Test Using Bloom Filter}
 \author{\IEEEauthorblockN{Maksim Yegorov}
 \IEEEauthorblockA{Computer Science Department\\
 Rochester Institute of Technology, NY\\ Email: \texttt{mey5634@rit.edu}
@@ -20,12 +21,13 @@ Rochester Institute of Technology, NY\\ Email: \texttt{mey5634@rit.edu}
 \maketitle
 
 \begin{abstract}
-Longest prefix matching has long been the bottleneck of the Bloom
+Longest prefix matching has long been the bottleneck of Bloom
 filter-based solutions for packet forwarding implemented in software.
 We propose a search algorithm to match a destination IP address against a
 compact representation of the FIB table in CPU cache on general purpose
 hardware with an average performance target of
-$\mathcal{O}(\log n)$ for an $n$-bit address.
+$\mathcal{O}(\log n)$ for $n = \bm{\max}(b, l)$, $b$-bit IP address and
+$l$ distinct outgoing links in FIB.
 
 \end{abstract}
 

@@ -90,6 +90,9 @@ def generate_traffic(protocol='v4'):
     output(random_traffic_with_default, protocol=protocol,
            fname='random_traffic_with_default.txt')
 
+    # TODO: (2) and (3) are impractical for IPv6 because of vast space
+    #       may need to do some quick and dirty sampling from prefix space instead
+    if protocol == 'v6': return
     # (2) generate traffic only from IP space covered by prefixes
     # --> in proportion to address space covered by given prefix length
 

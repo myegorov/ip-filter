@@ -34,7 +34,7 @@ def test__build_linear_bloom(protocol='v4'):
     pref_stats = prefix_stats(prefixes)
 
     # (1) test passing FPP as param
-    bf1, _, _ = ipfilter._build_linear_bloom(pref_stats,\
+    bf1, _ = ipfilter._build_linear_bloom(pref_stats,\
                                 FPP, None, None,  protocol=protocol)
     assert bf1.num_elements==8 and bf1.fpp==FPP and bf1.k==21\
             and bf1.ba.length()==231
@@ -42,7 +42,7 @@ def test__build_linear_bloom(protocol='v4'):
                    hash_funcs=list(range(bf1.k)), protocol=protocol)
 
     # (2) test passing k hash funcs as param (also requires n, FPP)
-    bf2, _, _ = ipfilter._build_linear_bloom(pref_stats,\
+    bf2, _ = ipfilter._build_linear_bloom(pref_stats,\
                                 FPP, 10, None,  protocol=protocol)
     assert bf2.num_elements==8 and bf2.fpp==FPP and bf2.k==10\
             and bf2.ba.length()==277
@@ -50,7 +50,7 @@ def test__build_linear_bloom(protocol='v4'):
                    hash_funcs=list(range(bf2.k)), protocol=protocol)
 
     # (3) test passing bitarray size and k as params (also requires n)
-    bf3, _, _ = ipfilter._build_linear_bloom(pref_stats,\
+    bf3, _ = ipfilter._build_linear_bloom(pref_stats,\
                                 None, 1, 1000, protocol=protocol)
     assert bf3.num_elements==8 and round(bf3.fpp)==-1 and bf3.k==1\
             and bf3.ba.length()==1000
@@ -59,9 +59,9 @@ def test__build_linear_bloom(protocol='v4'):
 
     # (4) test false positive rate for default BF with FPP param
     fpp = 1e-9
-    # bf, _, _ = ipfilter._build_linear_bloom(pref_stats,\
+    # bf, _ = ipfilter._build_linear_bloom(pref_stats,\
     #                             None, 4, 100002,  protocol=protocol)
-    bf, _, _ = ipfilter._build_linear_bloom(pref_stats,\
+    bf, _ = ipfilter._build_linear_bloom(pref_stats,\
                                 fpp, None, None,  protocol=protocol)
     assert bf.num_elements==8 and bf.fpp==fpp and bf.k==30\
             and bf.ba.length()==346
@@ -108,7 +108,7 @@ def test__find_bmp(protocol='v4'):
     # expect 9 as BMP
     ip, preflen22 = 3221225472, 22
     # confirm the prefix with length 9 is in BF
-    bf, prefixes, _ = ipfilter._build_linear_bloom(pref_stats,\
+    bf, _ = ipfilter._build_linear_bloom(pref_stats,\
                                 FPP, None, None,  protocol=protocol)
     bst = obst(protocol, weigh_equally)
     ip9 = encode_ip_prefix_pair(ip, 9, protocol)
@@ -142,7 +142,7 @@ def _pattern_insert(protocol='v4', bf=None):
         # with "optimal" Bloom filter encoding doesn't work: not sparse enough
         # test passing bitarray size and k as params (also requires n)
         # NOTE: using k = 1
-        bf, prefixes, _ = ipfilter._build_linear_bloom(pref_stats,\
+        bf, _ = ipfilter._build_linear_bloom(pref_stats,\
                                 None, 1, 1000, protocol=protocol)
 
     # # make sure the filter is sparse
@@ -170,19 +170,18 @@ def test__build_guided_bloom(protocol='v4'):
     pref_stats = prefix_stats(prefixes)
 
     bst = obst(protocol, weigh_equally)
-    bf, bst, count_bmp = ipfilter._build_guided_bloom(
+    bf, bst = ipfilter._build_guided_bloom(
             # pref_stats, FPP, None, None, bst, fib, protocol=protocol) # optimal filter isn't sparse enough
             pref_stats, None, 1, 1000, bst, fib, protocol=protocol)
 
     # print(bf)
-    # print(count_bmp)
 
     # (0) test that we can encode things in sparse guided BF
     _pattern_insert(protocol, bf)
 
     # test same schemes as for linear BF
     # (1) test passing FPP as param
-    bf1, _, _ = ipfilter._build_guided_bloom(
+    bf1, _ = ipfilter._build_guided_bloom(
                     pref_stats, FPP, None, None, bst, fib, protocol=protocol)
     assert bf1.num_elements==8 and bf1.fpp==FPP and bf1.k==21\
             and bf1.ba.length()==231
@@ -190,7 +189,7 @@ def test__build_guided_bloom(protocol='v4'):
                    hash_funcs=list(range(bf1.k)), protocol=protocol)
 
     # (2) test passing k hash funcs as param (also requires n, FPP)
-    bf2, _, _ = ipfilter._build_guided_bloom(
+    bf2, _ = ipfilter._build_guided_bloom(
                     pref_stats, FPP, 10, None, bst, fib, protocol=protocol)
     assert bf2.num_elements==8 and bf2.fpp==FPP and bf2.k==10\
             and bf2.ba.length()==277
@@ -198,7 +197,7 @@ def test__build_guided_bloom(protocol='v4'):
                    hash_funcs=list(range(bf2.k)), protocol=protocol)
 
     # (3) test passing bitarray size and k as params (also requires n)
-    bf3, _, _ = ipfilter._build_guided_bloom(pref_stats,\
+    bf3, _ = ipfilter._build_guided_bloom(pref_stats,\
                                 None, 1, 1000, bst, fib, protocol=protocol)
     assert bf3.num_elements==8 and round(bf3.fpp)==-1 and bf3.k==1\
             and bf3.ba.length()==1000
@@ -207,9 +206,9 @@ def test__build_guided_bloom(protocol='v4'):
 
     # (4) test false positive rate for default BF with FPP param
     fpp = 1e-9
-    # bf, _, _ = ipfilter._build_guided_bloom(pref_stats,\
+    # bf, _ = ipfilter._build_guided_bloom(pref_stats,\
     #                             None, 4, 100002,  protocol=protocol)
-    bf, _, _ = ipfilter._build_guided_bloom(pref_stats,\
+    bf, _ = ipfilter._build_guided_bloom(pref_stats,\
                                 fpp, None, None, bst, fib, protocol=protocol)
     assert bf.num_elements==8 and bf.fpp==fpp and bf.k==30\
             and bf.ba.length()==346
@@ -259,12 +258,12 @@ def test_build_bloom_filter(protocol='v4'):
     traffic = traffic[:10000]
 
     # (1) build linear and guided Bloom filters
-    bf_linear, _, _ = ipfilter.build_bloom_filter(
+    bf_linear, _ = ipfilter.build_bloom_filter(
         protocol='v4', lamda=None, fpp=FPP, k=None,
         num_bits=None, fib=fib)
     print(bf_linear)
 
-    bf_guided, bst, count_bmp = ipfilter.build_bloom_filter(
+    bf_guided, bst = ipfilter.build_bloom_filter(
         protocol='v4', lamda=weigh_equally, fpp=FPP, k=None,
         num_bits=None, fib=fib)
     print(bf_guided)
@@ -312,7 +311,7 @@ def test__linear_lookup_helper(protocol='v4'):
     prefixes = load_prefixes(protocol=protocol, infile='bgptable_tests.txt')
     pref_stats = prefix_stats(prefixes)
 
-    bf, _, _ = ipfilter._build_linear_bloom(pref_stats,\
+    bf, _ = ipfilter._build_linear_bloom(pref_stats,\
                                 FPP, None, None,  protocol=protocol)
 
     preflen, fib_val,  _ = ipfilter._linear_lookup_helper(bf,
@@ -339,9 +338,9 @@ def test__linear_lookup_bloom(protocol='v4'):
     pref_stats = prefix_stats(prefixes)
     traffic = [16777214, 3221225472, 16777216, 16778240, 16777215] # 3/5 known
 
-    bf, _, _ = ipfilter._build_linear_bloom(pref_stats,\
+    bf, _ = ipfilter._build_linear_bloom(pref_stats,\
                                 FPP, None, None,  protocol=protocol)
-    num_found, _, _ = ipfilter._linear_lookup_bloom(bf,
+    num_found, _ = ipfilter._linear_lookup_bloom(bf,
                                                  traffic,
                                                  32,
                                                  9,
@@ -354,7 +353,7 @@ def test__default_to_linear_search(protocol='v4'):
     prefixes = load_prefixes(protocol=protocol, infile='bgptable_tests.txt')
     pref_stats = prefix_stats(prefixes)
 
-    bf, _, _ = ipfilter._build_linear_bloom(pref_stats,\
+    bf, _ = ipfilter._build_linear_bloom(pref_stats,\
                                 FPP, None, None,  protocol=protocol)
 
     # this one should be found
@@ -404,13 +403,13 @@ def sanity_check(protocol='v4'):
     traffic = traffic[:10000]
 
     # test with bin search tree
-    bf_guided, bst, count_bmp = ipfilter.build_bloom_filter(
+    bf_guided, bst = ipfilter.build_bloom_filter(
         protocol=protocol, lamda=weigh_equally, fpp=None, k=20,
         num_bits=215480360, fib=fib)
     print(bf_guided)
 
     print('Starting lookup in guided filter...')
-    num_found_g, num_false_positive, num_defaulted_to_linear_search =\
+    num_found_g, num_false_positive =\
             ipfilter.lookup_in_bloom(bf_guided,
                                      traffic,
                                      fib,
@@ -421,15 +420,14 @@ def sanity_check(protocol='v4'):
                                      protocol=protocol)
     print('Guided Bloom: total found %d out of %d (%.2f)' %(num_found_g, len(traffic), num_found_g/len(traffic)))
     print('approx false positive rate: %.2f' %(num_false_positive/(num_found_g+num_false_positive))) # not actual fpp rate
-    print('number of times defaulted to linear search: %d' %(num_defaulted_to_linear_search))
 
     # compare against linear filter (should match)
-    bf_linear, _, _ = ipfilter.build_bloom_filter(
+    bf_linear, _ = ipfilter.build_bloom_filter(
         protocol=protocol, lamda=None, fpp=FPP, k=None,
         num_bits=None, fib=fib)
     print(bf_linear)
 
-    num_found_l, num_false_positive, _ =\
+    num_found_l, num_false_positive =\
         ipfilter.lookup_in_bloom(bf_linear,
                                  traffic,
                                  fib,
