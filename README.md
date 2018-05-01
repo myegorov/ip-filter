@@ -29,3 +29,11 @@ the traditional _linear_ search against the _guided_ search scheme:
 pip3 install -r requirements.txt
 ./setup.py
 ```
+
+## Directory contents
+
+        data/                   utilities for traffic generation, input/output
+        doc/                    project documentation
+        prototype/              implementation of the guided search algorithm, tests
+        setup.py                run experiments
+        src/                    skeleton for a forthcoming low-level implementation

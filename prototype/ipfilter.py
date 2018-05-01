@@ -71,7 +71,7 @@ def _find_bmp(prefix, bf, root, fib, max_pref_len, minn, len2ix, ix2len, protoco
         Returns best matching prefix length (encoded as int for prefixes['ix2len'] lookup)
         or 0 if not found (default route).
     '''
-    preflen, fib_val, _, _ = _guided_lookup_helper(
+    preflen, fib_val, _ = _guided_lookup_helper(
                 bf, root, prefix, fib, max_pref_len, minn, ix2len, protocol)
     return len2ix[preflen], fib_val
 
@@ -183,7 +183,7 @@ def _default_to_linear_search(bf, ip, bmp_less_1, minn, fib, protocol='v4'):
 
 def _guided_lookup_helper(bf, root, ip, fib, maxx, minn, ix2len, protocol):
     ''' Returns resulting prefix length, FIB value (or None if default route), 
-            num false pos, num defaults
+            num false positives
     '''
     max_shift = NUMBITS[protocol]
     k = bf.k
@@ -205,7 +205,7 @@ def _guided_lookup_helper(bf, root, ip, fib, maxx, minn, ix2len, protocol):
     # current is None, reached leaf of tree
     if preflen_hit[0] == 0:
         # return default route
-        return ix2len[preflen_hit[0]], None, 0, 0
+        return ix2len[preflen_hit[0]], None, 0
 
     # try decoding BMP (best matching prefix)
     masked = (((1<<max_shift) - 1) << (max_shift-preflen_hit[0])) & ip
@@ -229,7 +229,7 @@ def _guided_lookup_helper(bf, root, ip, fib, maxx, minn, ix2len, protocol):
                             hashes = _choose_hash_funcs(preflen_hit[1] + ENCODING[protocol],
                                                         end=k))\
             and pref_encoded in fib:
-        return pref_hypothesis, fib[pref_encoded], 0, 0
+        return pref_hypothesis, fib[pref_encoded], 0
 
     # else default to linear search below longest prefix hit
     false_positives += 1

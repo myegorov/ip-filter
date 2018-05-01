@@ -74,14 +74,14 @@ def _common_prep(protocol='v4', traffic_pattern=RANDOM_TRAFFIC):
 def _lookup_wrapper(bf, traffic, fib, pref_stats, protocol, bst=None, typ='linear'):
     # perform the lookup
     if typ == 'linear':
-        _, _, _ = ipfilter.lookup_in_bloom(bf,
+        _, _ = ipfilter.lookup_in_bloom(bf,
                                             traffic[:THROTTLE],
                                             fib,
                                             maxx=pref_stats['maxx'],
                                             minn=pref_stats['minn'],
                                             protocol=protocol)
     else:
-        _, _, _ = ipfilter.lookup_in_bloom(bf,
+        _, _ = ipfilter.lookup_in_bloom(bf,
                                             traffic[:THROTTLE],
                                             fib,
                                             root=bst,
@@ -119,7 +119,7 @@ def test_traffic_patterns(fpp_linear=FPP, num_bits_guided=BITARR_SIZE, k4_guided
             traffic = load_traffic(protocol=protocol, typ=infile)
 
             ## LINEAR
-            bf_linear, _, _ = ipfilter.build_bloom_filter(
+            bf_linear, _ = ipfilter.build_bloom_filter(
                 protocol=protocol, lamda=None, fpp=fpp_linear, k=None,
                 num_bits=None, fib=fib)
 
@@ -158,7 +158,7 @@ def test_traffic_patterns(fpp_linear=FPP, num_bits_guided=BITARR_SIZE, k4_guided
             ## GUIDED
             # use hand tuned params
             kg = k6_guided if protocol=='v6' else k4_guided
-            bf_guided, bst, count_bmp = ipfilter.build_bloom_filter(
+            bf_guided, bst = ipfilter.build_bloom_filter(
                 protocol=protocol, lamda=lamda, fpp=None, k=kg,
                 num_bits=num_bits_guided, fib=fib)
 
@@ -224,7 +224,7 @@ def test_bitarray_size(fib, traffic, pref_stats):
         for bitarray_size in test_matrix[typ]:
             if typ == 'linear':
                 ## LINEAR
-                bf_linear, _, _ = ipfilter.build_bloom_filter(
+                bf_linear, _ = ipfilter.build_bloom_filter(
                     protocol=protocol, lamda=None, fpp=None, k=K,
                     num_bits=bitarray_size, fib=fib)
                 res[typ]['percent_full'].append(100*bf_linear.ba.count()/bf_linear.ba.length())
@@ -250,7 +250,7 @@ def test_bitarray_size(fib, traffic, pref_stats):
             else:
                 ## GUIDED
                 # use hand tuned params
-                bf_guided, bst, count_bmp = ipfilter.build_bloom_filter(
+                bf_guided, bst = ipfilter.build_bloom_filter(
                     protocol=protocol, lamda=weigh_equally, fpp=None, k=K,
                     num_bits=bitarray_size, fib=fib)
                 res[typ]['percent_full'].append(100*bf_guided.ba.count()/bf_guided.ba.length())
@@ -331,7 +331,7 @@ def test_num_hash_funcs(fib, traffic, pref_stats):
         for k_size in test_matrix[typ]:
             if typ == 'linear':
                 ## LINEAR
-                bf_linear, _, _ = ipfilter.build_bloom_filter(
+                bf_linear, _ = ipfilter.build_bloom_filter(
                     protocol=protocol, lamda=None, fpp=None, k=k_size,
                     num_bits=BITARR_SIZE, fib=fib)
                 res[typ]['k'].append(k_size)
@@ -357,7 +357,7 @@ def test_num_hash_funcs(fib, traffic, pref_stats):
             else:
                 ## GUIDED
                 # use hand tuned params
-                bf_guided, bst, count_bmp = ipfilter.build_bloom_filter(
+                bf_guided, bst = ipfilter.build_bloom_filter(
                     protocol=protocol, lamda=weigh_equally, fpp=None, k=k_size,
                     num_bits=BITARR_SIZE, fib=fib)
                 res[typ]['k'].append(k_size)

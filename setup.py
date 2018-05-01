@@ -2,7 +2,6 @@
 '''setup.py
 
 Set up project directory structure.
-Download Oregon BGP tables.
 Synthesize traffic for experiments.
 Run experiments on the prototype implementation.
 '''
@@ -52,7 +51,7 @@ def download_bgp_tables():
     print('Downloaded raw BGP tables.')
 
 def run_experiments():
-    print('Finally, will experiments...')
+    print('Finally, will run experiments...')
 
     # for both IPv4 and IPv6
     driver.test_traffic_patterns()
@@ -73,11 +72,13 @@ if __name__ == "__main__":
     print('Will now preprocess BGP tables for input into FIB...')
     for protocol in ['v4', 'v6']:
         preprocess_bgp_tables.preprocess(protocol)
+    print('Done preprocessing BGP tables!\n\n')
 
     # synthesize traffic for experiments
     print('Will now generate IPv4 and IPv6 traffic. Takes a while...')
     for protocol in ['v4', 'v6']:
         generate_traffic.generate_traffic(protocol)
+    print('Done generating traffic!\n\n')
 
     # run experiments on the prototype implementation
     run_experiments()
