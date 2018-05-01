@@ -1,7 +1,0 @@
-test_traffic_patterns(): using 'hand tuned' params for guided, invocations of funcs,xs=[bf.contains(), hash_fnv(), fib.__contains__(), ipfilter._default_to_linear_search], yaxis=ncalls
-Guided search: stats per packet
-Function
-Count of invocations
-bitarray lookup, hashing, FIB lookup, defaults
-12.20, 7.13, 1.00, 0.06
-guided BF: BloomFilter(fpp=-1.00000000, n=749362, k=10, ba=(malloc=25.69MB, length=215480360b, %full=4.0))
