@@ -19,24 +19,6 @@ import matplotlib.pyplot as plt
 IPv4_SPACE = 2**32
 IPv6_SPACE = 2**128
 
-# def ipv4_to_int(ipv4):
-#     ''' Convert IPv4 string to int:
-#             '1.2.3.4' -> 16909060
-#     '''
-#     parts = ipv4.split('.')
-#     return (int(parts[0]) << 24) + (int(parts[1]) << 16) +\
-#            (int(parts[2]) << 8) + int(parts[3])
-
-# def int_to_ipv4(num):
-#     ''' Convert an int to IPv4 string:
-#             16909060 -> '1.2.3.4'
-#     '''
-#     res = []
-#     for i in range(4):
-#         res.append(str(num & 0xff))
-#         num >>= 8
-#     return '.'.join(list(reversed(res)))
-
 def parse_oregon(protocol='v4'):
     ''' Extract network addresses from the Oregon table (IPv4 or IPv6).
         Ignore next hop for the purpose of this experiment.
@@ -75,39 +57,6 @@ def _oregon_v6():
                 res.append(network)
     return res
 
-
-# def parse_APNIC(protocol='v4'):
-#     ''' Extract network addresses from an APNIC table (IPv4 or IPv6).
-#         Ignore next hop for the purpose of this experiment.
-
-#         Write (NetworkStr PrefixLength NetworkInt) to file and return
-#         count of prefix lengths.
-#     '''
-#     if protocol == 'v4':
-#         return _apnic_v4()
-#     else:
-#         # return _apnic_v6()
-#         pass
-
-
-# def _apnic_v4():
-#     res = []
-#     print('\nParsing BGP table...')
-#     with open (os.path.join(IPv4_AS65000, BGPTAB), 'r') as infile:
-#         for line in infile:
-#             if line.startswith('*'):
-#                 parts = line.split()
-#                 if len(parts) > 2:
-#                     network, next_hop = parts[1], parts[2]
-#                     if len(network.split('.')) != 4 or\
-#                             len(next_hop.split('.')) != 4:
-#                         continue
-#                     # ix = network.find('/')
-#                     # if ix < 0:
-#                     #     continue
-#                     res.append(network)
-
-#     return res
 
 def partition(prefixes, protocol='v4'):
     ''' Collect some stats about the fraction of IPv4 space covered

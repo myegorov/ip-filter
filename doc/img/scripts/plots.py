@@ -4,7 +4,6 @@ from math import log, ceil, e, pow
 import os
 
 def plot_scatter(xs, ys, title, xlabel, ylabel, outfile):
-    plt.style.use('ggplot')
 
     # plt.scatter(xs, ys)
     plt.semilogy(xs, ys)
@@ -13,6 +12,7 @@ def plot_scatter(xs, ys, title, xlabel, ylabel, outfile):
     plt.xlabel(xlabel)
     plt.title(title)
     plt.xticks([int(x) for x in xs if x%2==0]) # force integer xticks
+    plt.grid(linestyle='dotted')
 
     plt.savefig(outfile, format='png',
                 bbox_inches='tight', dpi=300)

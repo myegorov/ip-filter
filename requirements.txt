@@ -1,3 +1,5 @@
 matplotlib>=2.1.2
 netaddr>=0.7.19
 bitarray>=0.8.1
+wget>=3.2
+

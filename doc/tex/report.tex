@@ -7,11 +7,12 @@
 \usepackage{amssymb}
 \usepackage{multirow}
 \usepackage{afterpage}
+\usepackage{bm}
 \hyphenation{op-tical net-works semi-conduc-tor}
 
 
 \begin{document}
-\title{Cache-aware data structures for packet forwarding tables on general purpose CPUs}
+\title{An Algorithm for an Approximate Membership Test Using Bloom Filter}
 \author{\IEEEauthorblockN{Maksim Yegorov}
 \IEEEauthorblockA{Computer Science Department\\
 Rochester Institute of Technology, NY\\ Email: \texttt{mey5634@rit.edu}
@@ -20,11 +21,13 @@ Rochester Institute of Technology, NY\\ Email: \texttt{mey5634@rit.edu}
 \maketitle
 
 \begin{abstract}
-Longest prefix matching has long been the bottleneck of the Bloom 
-filter-based solutions for packet forwarding implemented in software. We propose
-a search algorithm that allows for a compact representation of the FIB table
-in cache on general purpose CPUs with an average performance target
-of $\mathcal{O}(\log n)$ for $n$-bit IP addresses.
+Longest prefix matching has long been the bottleneck of Bloom
+filter-based solutions for packet forwarding implemented in software.
+We propose a search algorithm to match a destination IP address against a
+compact representation of the FIB table in CPU cache on general purpose
+hardware with an average performance target of
+$\mathcal{O}(\log n)$ for $n = \bm{\max}(b, l)$, $b$-bit IP address and
+$l$ distinct outgoing links in FIB.
 
 \end{abstract}
 
@@ -32,28 +35,30 @@ of $\mathcal{O}(\log n)$ for $n$-bit IP addresses.
 To set the context, consider the fundamental task of a network router.
 In order to match an incoming packet to an outgoing interface link,
 the router inspects the packet's header to obtain the destination address.
-It will then consult a forwarding (Forwarding Information Base) table 
-stored on the router.
+It will then consult a forwarding table (Forwarding Information Base, 
+or FIB) stored on the router.
 An address entry in such a table will contain, among other things,
 a variable length prefix (as in 129.12.30.0/20).
 In effect, the router will compare the destination IP
 against the known prefixes using the longest prefix match rule.
-The forwarding table itself may be occasionally updated with new prefixes
+The forwarding table may be occasionally updated with new prefixes
 received via BGP route advertisement \cite{Kurose:Networking}.
 
 It would appear that a standard hash table or a binary search tree could
-satisfy the requirements of a data structure that permits the 
-\textit{look-up} and \textit{update} operations. The difficulty with 
-adapting the well-known 
-datastructures for Internet routing stems mainly from the sheer throughput
-demand imposed by today's line speed and the FIB table size.
-This can be easily shown on the example of a hypothetical 50Gbps core router 
-and an Ethernet frame of 84 bytes for a minimum sized packet. 
-The bit per second 
-wire line speed can be framed in terms of packets per second. Specifically,
-for this simplified scenario, we can expect to process 75Mpps. Depending on
-the algorithm that we pick, this may require at least 75 million lookups 
-per second (or an order of magnitude more). For a general purpose CPU clock
+satisfy the requirements of the data structure that calls for a
+\textit{look-up} and \textit{update} operations. The difficulty with
+adapting these fundamental datastructures for Internet routing stems 
+mainly from the sheer throughput requirements of today's line speed coupled
+with the FIB table size.
+This can be illustrated with an example of a hypothetical 50Gbps core router 
+and an Ethernet frame of 84 bytes for a minimum sized packet.
+The bit per second
+wire line speed can be recast in terms of packets per second. Specifically,
+for this simplified scenario, the router can be expected to process 75Mpps. 
+This may require at least 75 million lookups per second -- or an order of
+magnitude more, depending on the implementation of approximate prefix
+matching.
+For a general purpose CPU clock
 speed of (for the sake of example) 4 GHz, this equates to approximately 
 50 CPU cycles per packet. If the router cannot keep up with the speed of
 arriving packets, it will drop packets.
@@ -76,7 +81,7 @@ addresses etc. Still, the above generalization gives us a ballpark number
 to quickly determine if a particular datastructure is fit for the task.
 
 In view of these numbers, it is not at all surprising that the lookup has 
-been traditionally performed in hardware, using dedicated TCAM and SRAM 
+traditionally been performed in hardware, using dedicated TCAM and SRAM 
 circuits. There are multiple considerations that make software 
 implementations superior to ASIC hardware based ones. The cost per 
 transistor, power requirements, and monopoly effects, in particular, 
@@ -101,8 +106,8 @@ of the refinements involve comparatively large databases that require at
 least an order of magnitude more memory than what can fit into third level
 cache, and are therefore only practical for hardware implementations. We
 believe that the core ideas of leveraging the binary search on prefixes and 
-using memoization to avoid backtracking when the search fails can be
-adapted to the more compact data structures.
+using memoization to avoid backtracking can be adapted for the more 
+compact data structures.
 
 Dharmapurikar et al.\cite{Dharmapurikar:Bloom} describe a longest prefix
 matching algorithm utilizing a probabilistic set membership check with
@@ -123,11 +128,12 @@ The Bloom filter (BF) data structure was originally used by
 Dharmapurikar et al. \cite{Dharmapurikar:Bloom}
 for parallel look up implemented in hardware. By contrast, the software
 implementations on conventional hardware pay a hefty penalty -- in computation
-cost and code complexity -- to parallelize the look up. The default solution
-has been a linear search (see Algorithm~\ref{alg:linearsearch}). The time
+cost and code complexity -- to parallelize the look up. Consequently, linear
+search has been the default solution to the longest prefix matching problem
+(see Algorithm~\ref{alg:linearsearch}). The time
 complexity of Algorithm~\ref{alg:linearsearch} is $\mathcal{O}(n)$, where $n$
 is the number of distinct prefix lengths in the BF. We
-propose to improve on the linear search for Bloom filter in this paper.
+propose to improve on linear search for Bloom filter in this paper.
 
 \begin{algorithm}
 \caption{Linear search for longest matching prefix}\label{alg:linearsearch}
@@ -158,10 +164,9 @@ prefix} (LMP) would generally need to look up the candidate(s)
 in a forwarding table that serves as the definitive membership
 test and the store of the next hop information. Current solutions typically
 store this information in an off-chip hash table. This operation is therefore
-a bottleneck of the probabilistic filter-based schemes. While we have
-not yet implemented or tested the proposed guided search data structure
-specifically for FIB storage, we conjecture that the method we propose may be broadly
-applicable to any key-value store application that
+a bottleneck of the probabilistic filter-based schemes. We conjecture that
+the method we propose is broadly applicable to any key-value store
+application that
 
 \begin{enumerate}[label=(\alph*)]
 \item is defined as a many-to-few kind of mapping over totally ordered keys, and
@@ -170,68 +175,72 @@ applicable to any key-value store application that
 
 In the case of the FIB table, we propose to store the outgoing link information
 in a compact array. We would then insert encoded \texttt{(index, prefix)} pairs
-into a \emph{guided BF} data structure (separate from the BF used to
-encode \texttt{(length, prefix)} pairs). For forwarding table applications, this appears 
-feasible on today's off-the-shelf hardware, where we would typically have 
-on the order of a
-million keys, with array indices (outgoing interfaces) numbering in the low 
-hundreds.
+into a \emph{guided BF} data structure (\texttt{BF\textsubscript{fib}}, 
+separate from \texttt{BF\textsubscript{lmp}} used to
+encode \texttt{(length, prefix)} pairs). This scheme is feasible for
+forwarding table applications on today's off-the-shelf hardware with typical
+requirements of on the order of a million prefix keys and outgoing
+interfaces numbering in the low hundreds.
 
 From our preliminary analysis, both Bloom filters (\texttt{BF\textsubscript{fib}}
-and \texttt{BF\textsubscript{lmp}}) can fit in L3 cache for the
-current backbone router FIB table sizes that we've had the opportunity to
-survey. The implementation and a cost-benefit analysis of such a FIB 
-implementation remain to be done.
+and \texttt{BF\textsubscript{lmp}}) can fit in L3 cache assuming
+current backbone router FIB table sizes that we have
+surveyed.\cite{Yegorov:github} A low-level implementation and a cost-benefit
+analysis of such a FIB representation are in progress.
 
 
 \subsection{Implementation}
 
 The key observation that we draw upon is that any one of the routine
-tests -- whether a particular bit in a Bloom filter bit array
+tests -- whether a particular bit in the Bloom filter bit vector
 is set -- contains valuable information, in that the correlation between
 a set bit and a prefix being a member of the set is much higher than chance
 (see Fig.~\ref{fig:fpp}). The cost of calculations performed as part of
 validating the membership of a given key in a BF gives us an incentive to
 assign meaning to specific hashing calculations. In other words, we will 
 define a simple protocol that exploits the overhead associated with the
-BF hashing calculations to direct our search for the LMP.
+BF hashing calculations to direct the search for the longest matching prefix.
 
 \begin{figure}[h]
 \centering
-\includegraphics[height=2.2in]{../img/PvsK.png}
+\includegraphics[height=2.6in]{../img/PvsK.png}
   \caption{False positive probability vs. number of hash functions in an \emph{optimal} BF}
 \label{fig:fpp}
 \end{figure}
 
 
-Algorithm~\ref{alg:build} contains the pseudocode to \emph{build} the data 
-structure amenable to such a guided search. The underlying idea is to
-pre-compute in advance the search path for an IP that could possibly match a given
-prefix -- at the time of inserting the prefix into the BF.
+Algorithm~\ref{alg:build} contains the pseudocode to \emph{insert} a prefix
+(\emph{pref}) into a BF (\emph{bf}) that lends itself to 
+\emph{guided search}. The goal is to pre-compute the search 
+path for an IP that could possibly match a prefix in the BF
+while the data structure is built up.
 Algorithm~\ref{alg:guidedsearch} suggests
-a procedure to \emph{look up} an IP in a data structure built by
+a procedure to \emph{look up} an IP in the BF constructed by
 Algorithm~\ref{alg:build}. The
 algorithms assign specific meaning to the \emph{first} hashing function
 to direct our search left or right in a binary search tree. In addition, we
-reserve $n$ hashing functions ($n\in\{5,7\}$ for IPv4 and IPv6 tables
-in our experiments) to encode
+reserve $n$ hashing functions ($n\in\{5,7\}$ suffice for the IPv4 and IPv6
+tables used in our experiments) to encode
 the best matching prefix as a bit sequence. The $n$ bits, when decoded,
-will index the prefix length in a compact array of the prefix lengths
-contained in the router's FIB table (e.g., $0 \rightarrow 0$, $1 \rightarrow 8$, etc.
-for the IPv4 table used in our experiments).
+will index the prefix length in a compact array of distinct prefix lengths
+found in the router's FIB table (e.g., for the IPv4 table used in our 
+experiments, $\texttt{ix 0}$ $\rightarrow$ 
+$\texttt{pref len 0}$, $\texttt{ix 1}$ $\rightarrow$ $\texttt{pref len 8}$
+etc.).
 
-Both the \emph{build} and the \emph{look up} procedures assume an (optimal)
-binary search tree to guide the search. Such an optimal tree could be
-constructed for a given router if the historic traffic data and its 
+Both the \emph{build} and the \emph{look up} procedures assume a
+binary search tree (\emph{bst}) to guide the search. An approximately 
+optimal tree could
+be constructed for a given router if the historic traffic data and its 
 correlation with the fraction of the address space covered by each prefix length
 were known. In the absence of such information, we can conservatively
 assume random traffic and a balanced binary search tree (as in the
 classic binary search algorithm).
 
 The \emph{build} invokes the \emph{look up} to identify the
-best matching (shorter) prefix in a BF constructed to date for the 
+best matching (shorter) prefix in the BF constructed to date for the 
 (longer) prefix
-about to be inserted. Therefore, we will first sort the prefixes, before
+about to be inserted. Accordingly, we sort the prefixes before
 inserting them into the BF in the ascending order.
 
 \begin{algorithm}
@@ -266,7 +275,7 @@ inserting them into the BF in the ascending order.
               \State $\hspace*{15mm} \texttt{bmp,}$\Comment{encode bmp}
               \State $\hspace*{15mm} \texttt{hash\textsubscript{count\textsubscript{hit}},}$\Comment{start hash func}
               \State $\hspace*{15mm} \texttt{n)}$\Comment{num bits}
-        \State $\texttt{bf.insert(key, hashes)}$
+        \State $\texttt{bf.ins(key, hashes)}$
         \State $curr \gets curr.right$
       \EndIf
     \EndWhile
@@ -278,30 +287,30 @@ inserting them into the BF in the ascending order.
 
 Algorithm~\ref{alg:guidedsearch} defaults to linear search when a bit that
 would be unset
-under the perfect hashing assumption is found set in the actual BF.
-The dead end scenario can ensue in the course of:
+under the perfect hashing assumption \emph{is} set in the actual BF.
+The \emph{guided} search can reach a dead end when
 
 \begin{enumerate}
-  \item the search being directed \emph{right}, where 
-    (in hindsight) it should have proceeded \emph{left};
-  \item the decoded best matching prefix length is incorrect -- either 
-    logically impossible (nonsensical prefix length, or prefix length longer than
-    or equal to $last_{hit}$) or failing the BF look up on one of the 
+  \item the first hashing function directs it \emph{right}, where
+    (in hindsight) it should have pointed \emph{left};
+  \item the decoded best matching prefix length is incorrect -- either
+    logically impossible or failing the BF look up on one of the
     remaining hash functions;
-  \item the case of false positive: The prefix is not found in
+  \item the case of false positive: BF contains a prefix not found in
     FIB.
 \end{enumerate}
 
-In any one of these cases, Algorithm~\ref{alg:guidedsearch} defaults to the linear look up
-scheme, starting
-with the longest match to date ($last_{hit}$ in Algorithm~\ref{alg:guidedsearch} pseudocode).
+In any one of these cases, a stalemate is avoided by defaulting to the 
+linear look up scheme (Algorithm~\ref{alg:linearsearch}), starting
+just below the longest match to date ($last_{hit}$).
+
 Given the number of prefixes to be stored in the BF, we can tune the BF 
 parameters (bit array size $m$, number of hash functions $k$) to provide
 an optimal balance between the size of the data structure in memory (i.e.,
 design the BF to fit in CPU cache), on the one hand, and the rate at which
-the guided search would default to linear search and the FIB table look up 
+the guided search would default to linear search and the FIB look up 
 rate, on the other. The cost benefit analysis is a
-function of the size of L3 cache available, the penalty for off-chip memory 
+function of the available L3 cache size , the penalty for off-chip memory 
 hits and misses, the computational cost per byte of hash, and the like --
 and can be established through grid search and tuned for the target 
 hardware (and traffic, if the details are available).
@@ -345,29 +354,35 @@ hardware (and traffic, if the details are available).
               \State $\hspace*{25mm} \texttt{key,}$
               \State $\hspace*{25mm} \texttt{[hash\textsubscript{count\textsubscript{hit}+n}..hash\textsubscript{bf.k}])}$
 
-        \If{$res=1 \;\&\; key \in fib$}
+        \If{$res \neq 0 \;\&\; key \in fib$}
             \State \textbf{return} $bmp$
-        \Else
-            \State \textbf{return} \texttt{LinearSearch(}\Comment{defaulting}
-            \State $\hspace*{25mm} \texttt{bf, ip,}$
-            \State $\hspace*{25mm} \texttt{fib, last\textsubscript{hit}-1)}$
         \EndIf
       \EndIf
+
+      \State \textbf{return} \texttt{LinearSearch(}\Comment{defaulting}
+      \State $\hspace*{25mm} \texttt{bf, ip,}$
+      \State $\hspace*{25mm} \texttt{fib, last\textsubscript{hit}-1)}$
     \EndProcedure
 
   \end{algorithmic}
 \end{algorithm}
 
-The time
+Because of the possibility of defaulting to linear search, the time
 complexity of Algorithm~\ref{alg:guidedsearch} is $\Omega(\log n)$, 
-where $n$ is the number of distinct prefix lengths in the BF. Each
-search will scale the full height of the binary search tree, stopping at
-a leaf, then jumping from the most recent \texttt{hash\textsubscript{1}} match
-to the \emph{best matching prefix}, occasionally defaulting to a linear
-search over the lower prefix lengths. The number of defaults can in principle be controlled in the same
+where $n$ is the number of distinct prefix lengths in the BF.
+The BF parameters can be chosen to control the default rate for
+$\mathcal{O}(\log n)$ average case performance, in the same
 way as the false positive rate can be tuned for the standard BF.
 In practice, the degree to which the default rate can be minimized is
 limited by the practical considerations of the available CPU cache size.
+
+In summary, for each packet, the \emph{guided} search scales the full
+height of the binary search tree until it reaches a leaf, then decodes
+the best matching prefix (\emph{bmp}) from the most recent
+\texttt{hash\textsubscript{1}} match, and finally verifies
+the match using remaining hash functions on the \emph{bmp} itself.
+Occasionally, it will default to linear search over the lower prefix 
+lengths.
 
 \section{Experiments}
 
@@ -379,83 +394,79 @@ search schemes in terms that
 
 \begin{enumerate}[label=(\alph*)]
 \item are common to both algorithms, and
-\item account for the bulk of CPU and memory access time irrespective of implementation.
+\item account for the bulk of CPU and memory access time, irrespective of 
+  implementation.
 \end{enumerate}
 
 In particular, any filter-based implementation will involve repeated testing
 if a given bit is set in the filter's bit vector, invoking a
 non-cryptographic hash function, and looking up a candidate prefix match in
-a FIB table (whether implemented in a BF or a hash table). In the case
-of the guided BF search, we may also be interested to know, how infrequently
+FIB (whether implemented using BF or hash table). In the case
+of the guided BF search, we may also be interested to know, how frequently
 the BF (with given parameter settings) defaults to linear search. Obviously,
-the frequency of defaulting will be also reflected in the other metrics. 
-Consequently, we have instrumented our BF implementation to collect the 
-statistics on
-the bit lookup, hashing, and FIB table lookup
-function invocations. The profiling results will be reported per packet
-(equivalently, per destination IP).
+the default rate will also be reflected in the other metrics.
+With this in mind, we instrumented the BF implementation to collect the
+statistics on bit lookup, hashing, and FIB table lookup function
+invocations. We report profiling results per packet.
 
-An off-chip FIB table look up may be framed in terms of
-CPU cycle cost and set equivalent to some number of lookups in the 
-bitarray in L3 cache. This is a major factor in the cost-benefit analysis 
-when tuning the BF hyperparameters, such as the optimal 
-\emph{false positive probability}
-setting. Because these metrics depend on the system and implementation, we
-do not convert them to a common denominator.
-
-The performance of each scheme will depend on the traffic passing
+The core router BGP data is obtained from the University of Oregon Route
+Views Project.\cite{Oregon:RouteViews}
+The performance of either search scheme will depend on the traffic passing
 through the router in question. The traffic may be more or less correlated
 with the prefixes in the table. We benchmark both search schemes on three
 synthetically produced traffic data sets:
 
 \begin{enumerate}
-\item Random traffic: IP addresses where chosen randomly out of the whole
-        address space. Because of the vast size of the IPv6 address space,
-        without a default route, the absolute majority of such randomly 
-        selected addresses would not be matched to a prefix.
-\item Traffic is correlated with the fraction of address space covered by
-  the prefixes of a given length. For example, for the IPv4 BGP table that 
-    our experiments are based on, 16-bit long prefixes cover close to 1/4
-    of the total address space. Using reservoir sampling, with approximately
-    25\% probability we generate an
-    address from the range of the subnets that span the \texttt{/16} prefixes
-    in the table.
-\item Traffic is correlated with the frequency distribution of prefix
-    lengths in the BGP table. For example, 24-bit long prefixes account
-    for approximately 60\% of all prefixes in the table. We will randomly
-    generate an address spanned by the \texttt{/24} subnets with an
-    approximately 60\% probability.
+\item Random traffic: IP addresses are chosen randomly from the
+    address space. Because of the vast size of the IPv6 address space,
+    the absolute majority of randomly selected addresses match
+    to the default (length \texttt{/0}) route.
+\item Traffic is generated randomly from the address space spanned by the
+    prefixes in the table in proportion to the fraction of the address space
+    covered by the prefixes of a given length. For example, given an IPv4
+    BGP table where 16-bit long prefixes cover 1/4 of the total address
+    space, we use reservoir sampling to generate an address from the
+    the set of subnets defined by the length \texttt{/16} prefixes
+    in the table with 25\% probability.
+\item Traffic is correlated with the frequency distribution of the prefix
+    lengths in the BGP table. For example, given an IPv4 table where
+    24-bit long prefixes account for 60\% of all prefixes, we use reservoir
+    sampling to generate an address spanned by the length \texttt{/24} 
+    subnets with 60\% probability.
 \end{enumerate}
 
-If the traffic passing through a given device could be observed and correlated
-with the prefix distribution, we would be able to customize the binary
-search tree to reduce the search time, when ammortized over aggregate traffic.
-This would involve customizing the optimal binary search tree (e.g. using
-Knuth's dynamic programming algorithm) through differential weights
-assigned to each prefix length. The
-optimal weights would be a function of two parameters:
-the fraction of traffic correlated with each prefix length and the 
-optimal balance ratio among the height of each tree branch --
-to avoid gross imbalance in a scheme when each traversal scales the full
-height of a branch from root to leaf.
+If the correlation of the traffic passing through a given device with
+the prefix distribution in the table were known, we would be able to 
+customize the binary search tree and possibly reduce the search time
+ammortized over aggregate traffic.
+This would involve solving for the optimal binary search tree
+by assigning differential weights to each prefix length, so as to reduce the
+height of the frequently traveled branches, at the expense of the less
+well traveled paths. The optimal tree can then be computed using, for
+example, Knuth's dynamic programming algorithm. The
+weights are a linear combination of two factors, namely
+the fraction of traffic matched to each prefix length and the
+height balance ratio among tree branches optimized to avoid gross
+imbalance in a scheme where each traversal scales the full height of some
+branch from root to leaf.
 
 \begin{figure}[h]
 \centering
-\includegraphics[height=1.5in]{../img/prefix_distribution_v4.png}
-  \caption{Prefix distribution in the Route-Views.Oregon-ix.net IPv4 table}
+\includegraphics[height=1.45in]{../img/prefix_distribution_v4.png}
+  \caption{Prefix distribution in the U. of Oregon Route Views IPv4 table}
 \label{fig:prefixes-v4}
 \end{figure}
 
 \begin{figure}[h]
 \centering
-\includegraphics[height=1.5in]{../img/prefix_distribution_v6.png}
-  \caption{Prefix distribution in the Route-Views.Oregon-ix.net IPv6 table}
+\includegraphics[height=1.45in]{../img/prefix_distribution_v6.png}
+  \caption{Prefix distribution in the U. of Oregon Route Views IPv6 table}
 \label{fig:prefixes-v6}
 \end{figure}
 
-In the absence of data on traffic associated with the BGP table that we
-use in our experiments, we merely observe the effect of each traffic
-extreme on the performance of the guided vs. linear schemes. In all
+In the absence of data on traffic patterns, we merely observe the effect 
+of each synthetically generated pattern on the relative performance of the 
+guided vs. linear search schemes. In all
 experiments, we use the balanced binary tree (equivalently, binary search)
 with the implication that prefix lengths in any one branch of the
 balanced tree are equally likely to match any one IP.
@@ -463,23 +474,23 @@ balanced tree are equally likely to match any one IP.
 \begin{figure}[h]
 \centering
 \includegraphics[height=1.9in]{../img/trees_v4.png}
-  \caption{Balanced BST (used in experiments) vs. BST optimized exclusively for address share (not used), both based on the Route-Views.Oregon-ix.net IPv4 table}
+  \caption{Balanced BST (used in experiments) vs. BST optimized exclusively for address share (not used), both based on the U. of Oregon Route Views IPv4 table}
 \label{fig:trees-v4}
 \end{figure}
 
-We also contrast the performance of the linear vs. guided search schemes
-benchmarked on IPv4 and IPv6 tables. We use two traffic pattern extremes:
+We also contrast the relative performance of the linear and guided search
+on IPv4 vs. IPv6 traffic. We use two traffic pattern extremes:
 
 \begin{enumerate}
 \item random traffic, where most if not all IPv6 queries go to default route;
-\item traffic correlated with the prefix length frequency distribution,
-  using prefixes themselves as traffic.
+\item traffic correlated with the frequency distribution of each prefix 
+  length (in the limit, using prefixes themselves as traffic).
 \end{enumerate}
 
 Finally, we observe the effect of the BF hyperparameters:
 the bit vector size ($m$) -- or equivalently, the percentage of bits set -- 
-and the count of hash functions ($k$) on the performance of the linear vs.
-guided search schemes.
+and the count of hash functions ($k$) on the relative performance of the 
+linear vs. guided search schemes.
 
 \begin{table}[]
 \centering
@@ -500,8 +511,8 @@ by prefix frequency     & \multicolumn{2}{c}{\checkmark}    & \multicolumn{2}{c}
 \subsection{Discussion}
 
 We summarize the results of the experiments with different IPv4 traffic
-types in Table~\ref{tab:traffic}. In general, the \emph{guided search} 
-requires about half the number of accesses on a per packet basis compared 
+types in Table~\ref{tab:traffic}. For IPv4, the \emph{guided search}
+requires about one half the number of accesses on a per packet basis compared 
 to \emph{linear search}.
 
 \begin{table}[]
@@ -529,9 +540,9 @@ when the bitarray is approximately 10\% full.
 For a table of approx. 750,000 entries,
 10\% full guided BF requires 10.3MB and can therefore fit in
 L3 cache on today's general purpose CPUs. The performance for a
-compact 2.57MB guided filter is still an improvement on linear search
-results, even though the search
-defaults to linear 68\% of the time. The effect of defaults is
+compact 2.57MB guided BF is still an improvement over linear search, even 
+though the search defaults to linear 68\% of the time. 
+The high default rate is
 reflected in the increased number of bit lookups and hash computations.
 
 \begin{table}[]
@@ -565,35 +576,39 @@ reflected in the increased number of bit lookups and hash computations.
 \label{fig:utilization}
 \end{figure}
 
-The number of bit lookups asymptotically approaches approximately 8. 
-For the IPv4 table covering
+For IPv4, the number of bit lookups asymptotically approaches approximately 
+eight per packet.
+With prefixes in the table covering
 approximately 67\% of the address space, 33\% of lookups will
-require 4 lookups to arrive at the default route, while the remaining
+require four lookups to arrive at the default route, while the remaining
 67\% of lookups will
-traverse the full height of the balanced tree (5 lookups), in addition to
+traverse the full height of the balanced tree (five lookups), in addition to
 decoding the 5-bit \emph{best matching prefix} sequence for a total of
-10 lookups. Similarly, assuming the bit vector is sparse enough to never
-default to linear search, there would be about 5.3 hash lookups in the limit.
-Four hash computations are required to yield the default route for
-33\% of lookups and 6 hash computations are required
-for the remaining 67\% of lookups: 5 hashes to traverse the height of the 
-tree, in addition to a single hash computation to decode the 5-bit sequence).
-This calculation also illustrates, why $k=10$ hash functions were chosen
-for the experiments.
+ten lookups. This calculation also suggests that $k=10$ hash functions
+is the minimum for the protocol to function.
+
+Using the same assumption that the bit vector is sparse enough to never
+default to linear search, there would be just over five hash lookups per
+packet in the 
+limit. Four hash computations are required to yield the default route for
+33\% of lookups and six hash computations are required
+for the remaining 67\% of lookups, which includes five hashes to traverse 
+the height of the tree and a single hash computation to decode 
+the 5-bit sequence.
 
 Last but not least, the proposed search algorithm is particularly effective
 for the IPv6 address space. This is to be expected with the 128-bit IP
-addresses that require only six bitarray lookups to confirm the default
-route with the guided search scheme (Figure~\ref{fig:IPv6-tree}).
+addresses that require only six bit vector lookups to match the default
+route with the logarithmic time complexity (Figure~\ref{fig:IPv6-tree}).
 
-Figure~\ref{fig:IPv6-by-traffic} compares the performance for two traffic 
-patterns. At one extreme, there is the default-only
+Figure~\ref{fig:IPv6-by-traffic} illustrates the relative performance of
+the two search algorithms for two IPv6 traffic patterns. 
+At one extreme, there is the default-only
 traffic that is optimally suited for the guided search scheme. At the other
-extreme, there is the case of no-default traffic directly correlated with 
-the share of each prefix
-length (here we reuse prefixes as the traffic). It will be seen that for any
-traffic pattern the guided scheme outperforms the linear search
-by an order of magnitude.
+extreme, there is the case of no-default traffic in direct proportion to
+the share of each prefix length (here we reuse prefixes as the traffic).
+For either traffic pattern, the guided scheme outperforms the linear 
+search by an order of magnitude.
 
 \bibliographystyle{IEEEtran}
 \bibliography{bibliography}
